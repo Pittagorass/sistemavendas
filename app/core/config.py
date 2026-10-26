@@ -2,6 +2,9 @@
 
 from functools import lru_cache
 
+from urllib.parse import urlsplit
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,7 +12,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     ambiente: str = "desenvolvimento"
-    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/sistemavendas"
+    # A integração Neon da Vercel pode criar a variável como POSTGRES_URL em vez de DATABASE_URL.
+    database_url: str = Field(
+        default="postgresql+psycopg://postgres:postgres@localhost:5432/sistemavendas",
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL"),
+    )
     jwt_secret: str = "troque-este-segredo"
 
     # A Vercel define VERCEL=1 nas funções serverless.
@@ -27,6 +34,11 @@ class Settings(BaseSettings):
             if url.startswith(prefixo):
                 return "postgresql+psycopg://" + url[len(prefixo):]
         return url
+
+    @property
+    def database_host(self) -> str:
+        """Host do banco, sem usuário nem senha, seguro para aparecer em logs."""
+        return urlsplit(self.sqlalchemy_url).hostname or "desconhecido"
 
 
 @lru_cache

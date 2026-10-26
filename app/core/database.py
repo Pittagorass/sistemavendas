@@ -1,5 +1,6 @@
 """Conexão com o PostgreSQL e controle de transações (RNF-TEC02 / Diretriz 3)."""
 
+import logging
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine
@@ -9,6 +10,10 @@ from sqlalchemy.pool import NullPool
 from app.core.config import get_settings
 
 settings = get_settings()
+
+logger = logging.getLogger(__name__)
+if settings.serverless and settings.database_host in ("localhost", "127.0.0.1"):
+    logger.error("DATABASE_URL/POSTGRES_URL não configurada no ambiente: usando o banco padrão em localhost.")
 
 # Em serverless cada função é efêmera: o pool fica a cargo do pooler do provedor (RNF-TEC08).
 engine = create_engine(
