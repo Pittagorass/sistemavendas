@@ -5,8 +5,7 @@ Requisitos e decisões: [documentos/contexto.md](documentos/contexto.md).
 ## Estrutura
 
 ```
-api/index.py        entrada da função serverless na Vercel
-app/main.py         criação da aplicação FastAPI
+app/main.py         criação da aplicação FastAPI (detectada automaticamente pela Vercel)
 app/core/           configuração, conexão com o banco, erros padronizados
 app/routes/         rotas (controladores)
 app/services/       regras de negócio

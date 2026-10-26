@@ -10,7 +10,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 ## 2. Stack Tecnológica Obrigatória (Requisitos Não Funcionais de Infraestrutura)
 | ID | Categoria | Especificação |
 | :--- | :--- | :--- |
-| **RNF-TEC01** | Back-end | Python 3.10+ com **FastAPI** [PADRÃO], ORM SQLAlchemy 2.x e migrações com Alembic. Executado como Serverless Function Python na Vercel (rotas sob `/api`). |
+| **RNF-TEC01** | Back-end | Python 3.10+ com **FastAPI** [PADRÃO], ORM SQLAlchemy 2.x e migrações com Alembic. Implantado na Vercel pelo suporte zero-config a FastAPI (entrypoint `app/main.py`), com as rotas da API sob `/api`. |
 | **RNF-TEC02** | Banco de Dados | PostgreSQL 14+ (ACID e integridade referencial). Hospedagem gerenciada com **pooler de conexões** obrigatório (ex.: Neon/Vercel Postgres) por causa do modelo serverless. |
 | **RNF-TEC03** | Hospedagem & Deploy | Vercel para front-end e funções serverless, com deploy automático via GitHub (CI/CD). Variáveis sensíveis apenas em Environment Variables da Vercel. |
 | **RNF-TEC04** | Segurança de Transporte | SSL/TLS (HTTPS) obrigatório em **todas** as conexões: navegador ↔ Vercel, API ↔ PostgreSQL (`sslmode=require`) e API ↔ serviços externos. |
@@ -139,8 +139,9 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 
 ## 7. Estrutura do Código (estabelecida na Etapa 1)
 ```
-api/index.py              Entrada da Serverless Function na Vercel (apenas importa app.main)
-app/main.py               Cria o FastAPI, registra handlers de erro e inclui os routers
+app/main.py               Cria o FastAPI (`app`), registra handlers de erro e inclui os routers.
+                          A Vercel detecta este arquivo automaticamente (zero-config): NÃO criar api/index.py
+                          nem rewrites no vercel.json, pois desviam as rotas /api/* e causam 404.
 app/core/config.py        Settings (pydantic-settings) lidas de variáveis de ambiente / .env
 app/core/database.py      engine, SessionLocal e dependência get_db (commit/rollback automático)
 app/core/errors.py        ErroNegocio e formato padrão de erro JSON
@@ -152,9 +153,8 @@ app/models/__init__.py    Importa todos os modelos (necessário para o autogener
 app/schemas/              Schemas Pydantic de entrada/saída da API (criar a partir da Etapa 2)
 app/integrations/         Clientes de serviços externos atrás de interfaces (CEP, pagamento, NF-e, e-mail, frete, storage)
 migrations/               Alembic (versions/ contém as migrações)
-public/                   Front-end estático HTML/CSS/JS servido pela Vercel
+public/                   Front-end estático HTML/CSS/JS servido pelo CDN da Vercel (não usar app.mount nele)
 tests/                    pytest
-vercel.json               Reescreve /api/* para api/index.py
 .github/workflows/ci.yml  CI: PostgreSQL 16 + alembic upgrade head + pytest
 ```
 
