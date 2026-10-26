@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistema de Vendas</title>
+</head>
+<body>
+  <h1>Sistema de Vendas</h1>
+  <p>Status da API: <span id="status">verificando...</span></p>
+  <script>
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((dados) => { document.getElementById("status").textContent = dados.status; })
+      .catch(() => { document.getElementById("status").textContent = "indisponível"; });
+  </script>
+</body>
+</html>

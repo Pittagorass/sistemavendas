@@ -1,0 +1,9 @@
+# Quebras de linha LF no repositório (compatível com Linux/CI e Vercel).
+* text=auto eol=lf
+
+# Arquivos binários: nunca converter.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
