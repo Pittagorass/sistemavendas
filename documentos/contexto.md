@@ -128,7 +128,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 ## 6. Ordem de Implementação e Estado Atual
 | Etapa | Escopo | Status |
 | :--- | :--- | :--- |
-| 1 | Fundação: projeto FastAPI, conexão PostgreSQL, Alembic, CI e deploy na Vercel | **Concluída localmente** (2026-10-26): testes passando e conexão com o Neon (sa-east-1) validada. Pendente: enviar ao GitHub, verificar CI e deploy na Vercel |
+| 1 | Fundação: projeto FastAPI, conexão PostgreSQL, Alembic, CI e deploy na Vercel | **Concluída** (2026-10-26): testes e CI passando; publicada em https://sistemavendas-sigma.vercel.app com conexão ao Neon (sa-east-1) validada |
 | 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | Pendente |
 | 3 | Módulo 4: produtos, estoque e painel do gerente | Pendente |
 | 4 | Módulo 3: carrinho, frete e reserva | Pendente |
