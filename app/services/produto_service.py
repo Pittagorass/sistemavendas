@@ -10,6 +10,7 @@ from app.integrations.armazenamento import ArmazenamentoImagens
 from app.models.produto import TIPO_ENTRADA, TIPO_INICIAL, TIPO_SAIDA, MovimentacaoEstoque, Produto
 from app.repositories import produto_repository as repo
 from app.schemas.produto import MovimentacaoEntrada, ProdutoAtualizacao, ProdutoEntrada
+from app.services.carrinho_service import liberar_reservas_expiradas
 
 # Assinaturas dos formatos aceitos (RNF-PROD01). O tipo é detectado pelo conteúdo do arquivo,
 # não pelo nome nem pelo Content-Type enviado, que podem ser forjados.
@@ -28,10 +29,12 @@ def _obter(db: Session, produto_id: uuid.UUID, bloquear: bool = False) -> Produt
 
 
 def obter_admin(db: Session, produto_id: uuid.UUID) -> Produto:
+    liberar_reservas_expiradas(db)
     return _obter(db, produto_id)
 
 
 def obter_publico(db: Session, produto_id: uuid.UUID) -> Produto:
+    liberar_reservas_expiradas(db)
     produto = _obter(db, produto_id)
     if not produto.ativo:
         raise ErroNegocio("Produto não encontrado.", "produto_nao_encontrado", 404)
@@ -39,6 +42,8 @@ def obter_publico(db: Session, produto_id: uuid.UUID) -> Produto:
 
 
 def listar(db: Session, busca: str | None, somente_ativos: bool, limite: int, deslocamento: int):
+    # Reservas vencidas voltam ao disponível antes de exibir o estoque (RNF-C02).
+    liberar_reservas_expiradas(db)
     return repo.listar(db, busca, somente_ativos, limite, deslocamento)
 
 
@@ -76,6 +81,7 @@ def movimentar_estoque(
     db: Session, produto_id: uuid.UUID, dados: MovimentacaoEntrada, usuario_id: uuid.UUID
 ) -> Produto:
     """RF-PROD03 / RNF-PROD02: altera o estoque físico com a linha travada e registra a auditoria."""
+    liberar_reservas_expiradas(db)
     produto = _obter(db, produto_id, bloquear=True)
     atual = produto.estoque_fisico
 

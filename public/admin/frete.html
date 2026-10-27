@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frete – Painel do gerente – Lulora Tech</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Lulora Tech</a>
+    <nav><a href="/admin/produtos.html">Produtos</a><a href="/conta.html">Minha conta</a></nav>
+  </header>
+  <main>
+    <div id="mensagem" class="mensagem" role="alert"></div>
+    <form id="form-frete" class="cartao" novalidate hidden>
+      <h1>Tabela de frete</h1>
+      <p class="dica">Marque os estados atendidos e informe o valor e o prazo de entrega. Estados desmarcados não aparecem como opção de entrega.</p>
+      <div style="max-width:280px;margin-bottom:16px">
+        <label for="gratis">Frete grátis em compras a partir de (R$)</label>
+        <input id="gratis" inputmode="decimal" placeholder="Deixe em branco para não oferecer">
+      </div>
+      <div class="tabela-rolagem">
+        <table>
+          <thead><tr><th>Atende</th><th>UF</th><th>Valor (R$)</th><th>Prazo (dias úteis)</th></tr></thead>
+          <tbody id="ufs"></tbody>
+        </table>
+      </div>
+      <div class="acoes"><button type="submit">Salvar tabela</button></div>
+    </form>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+    const mensagem = document.getElementById("mensagem");
+    const formulario = document.getElementById("form-frete");
+    const corpo = document.getElementById("ufs");
+
+    const paraDecimal = (texto) => (texto.includes(",") ? texto.replace(/\./g, "").replace(",", ".") : texto).trim();
+    const paraTexto = (valor) => (valor == null ? "" : String(valor).replace(".", ","));
+
+    function campo(tipo, rotulo) {
+      const input = document.createElement("input");
+      input.type = tipo;
+      input.setAttribute("aria-label", rotulo);
+      return input;
+    }
+
+    function montar(tabela) {
+      const porUf = Object.fromEntries(tabela.faixas.map((f) => [f.uf, f]));
+      document.getElementById("gratis").value = paraTexto(tabela.frete_gratis_acima);
+      corpo.replaceChildren();
+      for (const uf of UFS) {
+        const faixa = porUf[uf];
+        const linha = document.createElement("tr");
+        linha.dataset.uf = uf;
+        const atende = campo("checkbox", `Atende ${uf}`);
+        atende.checked = Boolean(faixa);
+        const valor = campo("text", `Valor do frete para ${uf}`);
+        valor.inputMode = "decimal";
+        valor.value = faixa ? paraTexto(faixa.valor) : "";
+        valor.style.maxWidth = "140px";
+        const prazo = campo("number", `Prazo para ${uf}`);
+        prazo.min = "1";
+        prazo.max = "90";
+        prazo.value = faixa ? faixa.prazo_dias : "";
+        prazo.style.maxWidth = "100px";
+        const ativar = () => { valor.disabled = prazo.disabled = !atende.checked; };
+        atende.addEventListener("change", ativar);
+        ativar();
+        for (const elemento of [atende, uf, valor, prazo]) {
+          const td = document.createElement("td");
+          td.append(elemento);
+          linha.appendChild(td);
+        }
+        corpo.appendChild(linha);
+      }
+    }
+
+    formulario.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      limparMensagem(mensagem);
+      const faixas = [];
+      for (const linha of corpo.children) {
+        const [atende, , valor, prazo] = [...linha.children].map((td) => td.firstChild);
+        if (!atende.checked) continue;
+        faixas.push({ uf: linha.dataset.uf, valor: paraDecimal(valor.value || "0"), prazo_dias: Number(prazo.value || 0) });
+      }
+      const gratis = paraDecimal(document.getElementById("gratis").value);
+      try {
+        const tabela = await Api.requisitar("/api/admin/frete", {
+          metodo: "PUT",
+          corpo: { faixas, frete_gratis_acima: gratis || null },
+        });
+        montar(tabela);
+        mostrarMensagem(mensagem, "sucesso", `Tabela salva: ${tabela.faixas.length} estado(s) atendido(s).`);
+      } catch (erro) {
+        if (erro.status === 401) return (window.location.href = "/login.html");
+        mostrarMensagem(mensagem, "erro", erro.message, erro.campos);
+      }
+    });
+
+    (async () => {
+      if (!(await Api.renovarSessao())) return (window.location.href = "/login.html");
+      try {
+        montar(await Api.requisitar("/api/admin/frete"));
+        formulario.hidden = false;
+      } catch (erro) {
+        mostrarMensagem(mensagem, "erro", erro.status === 403 ? "Esta área é restrita a gerentes." : erro.message);
+      }
+    })();
+  </script>
+</body>
+</html>

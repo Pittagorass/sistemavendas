@@ -1,4 +1,4 @@
-# Sistema de Vendas (ERP & E-commerce)
+# Lulora Tech (ERP & E-commerce)
 
 Requisitos e decisões: [documentos/contexto.md](documentos/contexto.md).
 

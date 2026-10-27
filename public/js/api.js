@@ -55,6 +55,39 @@ const ROTULOS_CAMPOS = {
   bairro: "Bairro", cidade: "Cidade", uf: "UF", codigo_ibge: "Código IBGE",
 };
 
+// Monta o menu do cabeçalho conforme o visitante esteja logado ou não.
+// Retorna o perfil ("cliente"/"gerente") ou null quando não há sessão.
+async function montarMenu(nav) {
+  let perfil = null;
+  if (await Api.renovarSessao()) {
+    try {
+      perfil = JSON.parse(atob(Api.token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).perfil;
+    } catch {
+      perfil = "cliente";
+    }
+  }
+  const link = (href, texto, id) => {
+    const a = document.createElement("a");
+    a.href = href;
+    a.textContent = texto;
+    if (id) a.id = id;
+    return a;
+  };
+  nav.replaceChildren();
+  if (!perfil) {
+    nav.append(link("/login.html", "Entrar"), link("/cadastro.html", "Criar conta"));
+  } else {
+    if (perfil === "gerente") nav.append(link("/admin/produtos.html", "Painel"));
+    nav.append(link("/conta.html", "Minha conta"), link("/carrinho.html", "Carrinho", "link-carrinho"));
+  }
+  return perfil;
+}
+
+function atualizarContadorCarrinho(quantidade) {
+  const link = document.getElementById("link-carrinho");
+  if (link) link.textContent = quantidade ? `Carrinho (${quantidade})` : "Carrinho";
+}
+
 function mostrarMensagem(elemento, tipo, texto, campos = []) {
   elemento.className = `mensagem ${tipo}`;
   elemento.textContent = texto;

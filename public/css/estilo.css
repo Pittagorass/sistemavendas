@@ -150,3 +150,22 @@ legend { color: var(--suave); font-size: 0.9rem; padding: 0 4px; }
 .produto .sem-imagem { display: flex; align-items: center; justify-content: center; color: var(--suave); font-size: 0.85rem; }
 .produto .info { padding: 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .produto .preco { font-size: 1.15rem; font-weight: 600; }
+
+.carrinho { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .carrinho { grid-template-columns: 1fr; } }
+.item-carrinho { display: grid; grid-template-columns: 48px 1fr auto auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--borda); }
+@media (max-width: 560px) { .item-carrinho { grid-template-columns: 48px 1fr; } .item-carrinho .quantidade, .item-carrinho .valores { grid-column: 2; } }
+.item-carrinho .info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.item-carrinho .problema { color: var(--erro); font-size: 0.85rem; }
+.quantidade { display: flex; align-items: center; gap: 4px; }
+.quantidade button { padding: 6px 12px; }
+.quantidade input { width: 64px; text-align: center; padding: 6px; }
+.valores { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+button.link { background: none; color: var(--primaria); padding: 0; font-size: 0.85rem; }
+button.link:hover { background: none; text-decoration: underline; }
+.totais { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 16px 0; }
+.totais dd { margin: 0; text-align: right; }
+.totais .total { font-weight: 600; font-size: 1.15rem; border-top: 1px solid var(--borda); padding-top: 8px; }
+.avisos { color: var(--erro); padding-left: 18px; margin: 0 0 8px; font-size: 0.9rem; }
+.avisos:empty { display: none; }
+header nav a { white-space: nowrap; }

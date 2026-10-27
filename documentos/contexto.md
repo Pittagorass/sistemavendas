@@ -1,4 +1,6 @@
-# Contexto para Desenvolvimento de Software - Sistema ERP/E-commerce
+# Contexto para Desenvolvimento de Software - Lulora Tech (ERP/E-commerce)
+
+> **Nome do sistema:** Lulora Tech. Use este nome em títulos de páginas, cabeçalhos, e-mails e documentos gerados.
 
 Este documento serve como a "Fonte da Verdade" (Source of Truth) e contexto detalhado para orientação de Inteligências Artificiais no desenvolvimento e geração do código-fonte do sistema. Em caso de conflito com o `Documento_de_Requisitos_ERP.pdf`, **prevalece este documento**.
 
@@ -54,7 +56,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 | **RF-C01** | Funcional | Adicionar ao Carrinho | Permitir que o cliente insira itens no carrinho a partir do catálogo ou página do produto. O carrinho é persistido no banco e exige login [PADRÃO]. |
 | **RNF-C01** | Não Funcional | Atualização Assíncrona | A inserção de itens ocorre via Fetch API sem recarregar a tela. |
 | **RF-C02** | Funcional | Validação de Estoque | Impedir quantidades superiores ao saldo **disponível** (`estoque_fisico - estoque_reservado`). A verificação é feita no back-end de forma atômica. |
-| **RNF-C02** | Não Funcional | Reserva de Inventário | Ao **iniciar o checkout**, os itens são reservados por 15 minutos (`reservas_estoque` com `expira_em`). Reservas expiradas são liberadas por um Vercel Cron e ignoradas nas consultas de disponibilidade. Reserva e baixa usam `SELECT ... FOR UPDATE` ou `UPDATE ... WHERE disponivel >= qtd` para evitar condição de corrida. |
+| **RNF-C02** | Não Funcional | Reserva de Inventário | Ao **iniciar o checkout**, os itens são reservados por 15 minutos (`reservas_estoque` com `expira_em`). Reservas vencidas são liberadas no início de cada operação de carrinho/catálogo/estoque (liberação sob demanda) e, como limpeza extra, por um Vercel Cron diário (o plano Hobby só permite 1 execução por dia). Reserva e baixa usam `SELECT ... FOR UPDATE` ou `UPDATE ... WHERE disponivel >= qtd` para evitar condição de corrida. |
 | **RF-C03** | Funcional | Alterar Quantidades | Permitir aumentar, diminuir ou remover itens na tela resumo do carrinho. Se um produto for desativado ou ficar sem estoque, o item é sinalizado e não pode seguir para o checkout. |
 | **RNF-C03** | Não Funcional | Recálculo em Tempo Real | Subtotal, frete e total são recalculados a cada alteração. O front-end exibe valores, mas o **valor oficial é sempre calculado no back-end** com o preço atual do produto. |
 | **RF-C04** [NOVO] | Funcional | Cálculo de Frete [PADRÃO] | Frete calculado por tabela fixa por UF de destino (cadastrada pelo gerente), com frete grátis acima de um valor configurável. Implementado atrás de uma interface `CalculadoraFrete` para futura troca por API de transportadora. |
@@ -131,7 +133,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 | 1 | Fundação: projeto FastAPI, conexão PostgreSQL, Alembic, CI e deploy na Vercel | **Concluída** (2026-10-26): testes e CI passando; publicada em https://sistemavendas-sigma.vercel.app com conexão ao Neon (sa-east-1) validada |
 | 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | **Concluída** (2026-10-27): RF/RNF-CAD01–06 e RF/RNF-SEC01–03 implementados, 50 testes passando, publicada na Vercel com cadastro e login validados em produção |
 | 3 | Módulo 4: produtos, estoque e painel do gerente | **Concluída** (2026-10-27): RF-PROD01–03 e RNF-PROD01 implementados, 74 testes passando, publicada e validada pelo gerente em produção (cadastro, estoque, histórico e upload de imagens no Blob store público `imagens-produtos`) |
-| 4 | Módulo 3: carrinho, frete e reserva | Pendente |
+| 4 | Módulo 3: carrinho, frete e reserva | **Concluída localmente** (2026-10-27): RF-C01–C04 e RNF-C01–C03 implementados, 95 testes passando, carrinho validado no navegador. Pendente: publicar, configurar `CRON_SECRET` na Vercel e cadastrar a tabela de frete no painel |
 | 5 | Módulo 5 e RF-F01/RF-F04: checkout, pagamento e pedido | Pendente |
 | 6 | Módulo 6: NF-e em homologação e envio de documentos | Pendente |
 
@@ -142,6 +144,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 app/main.py               Cria o FastAPI (`app`), registra handlers de erro e inclui os routers.
                           A Vercel detecta este arquivo automaticamente (zero-config): NÃO criar api/index.py
                           nem rewrites no vercel.json, pois desviam as rotas /api/* e causam 404.
+vercel.json               Somente a configuração dos Cron Jobs (sem rewrites).
 app/dev.py                Só para desenvolvimento local: app.main + app.mount de public/ (uvicorn app.dev:app)
 app/cli.py                Comandos administrativos (python -m app.cli promover-gerente <email>)
 app/core/config.py        Settings (pydantic-settings) lidas de variáveis de ambiente / .env
@@ -161,9 +164,9 @@ app/integrations/         Clientes de serviços externos atrás de interfaces (C
 app/integrations/armazenamento.py  Imagens: Vercel Blob (store público) ou pasta local public/uploads em desenvolvimento.
                           Rotas recebem via Depends(obter_armazenamento); testes substituem por um falso.
 migrations/               Alembic (versions/ contém as migrações)
-public/                   Front-end estático (index = catálogo, cadastro, login, conta, admin/produtos.html
-                          + css/, js/api.js, js/admin-produtos.js), servido pelo CDN da Vercel
-                          (não usar app.mount em app/main.py)
+public/                   Front-end estático (index = catálogo, cadastro, login, conta, carrinho,
+                          admin/produtos.html, admin/frete.html + css/, js/api.js, js/admin-produtos.js,
+                          js/carrinho.js), servido pelo CDN da Vercel (não usar app.mount em app/main.py)
 tests/                    pytest (conftest.py: fixture db_transacional desfaz tudo ao final de cada teste)
 .github/workflows/ci.yml  CI: PostgreSQL 16 + alembic upgrade head + pytest
 ```
@@ -178,8 +181,12 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
 - Painel do gerente: `GET|POST /api/admin/produtos`, `GET|PATCH /api/admin/produtos/{id}`,
   `POST /api/admin/produtos/{id}/estoque`, `GET /api/admin/produtos/{id}/movimentacoes`,
   `PUT /api/admin/produtos/{id}/imagem` (corpo = arquivo da imagem, sem multipart)
+- Carrinho (cliente logado): `GET /api/carrinho?endereco_id=`, `POST /api/carrinho/itens`,
+  `PUT|DELETE /api/carrinho/itens/{produto_id}`, `POST|DELETE /api/carrinho/checkout`
+- Frete (gerente): `GET|PUT /api/admin/frete`
+- Cron: `GET /api/cron/liberar-reservas` (header `Authorization: Bearer <CRON_SECRET>`)
 
-**Tabelas existentes:** `usuarios`, `enderecos`, `refresh_tokens`, `tokens_revogados`, `tentativas_login`, `produtos`, `movimentacoes_estoque`.
+**Tabelas existentes:** `usuarios`, `enderecos`, `refresh_tokens`, `tokens_revogados`, `tentativas_login`, `produtos`, `movimentacoes_estoque`, `carrinhos`, `itens_carrinho`, `reservas_estoque`, `tabela_frete`, `configuracao_frete`.
 
 **Decisões da Etapa 3:**
 - Estoque disponível = `estoque_fisico - estoque_reservado`. `estoque_reservado` já existe (sempre 0 até a Etapa 4) e uma constraint impede reservado > físico.
@@ -189,6 +196,14 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
 - Imagens: o formato é identificado pelos bytes iniciais (JPG/PNG/WebP), limite de 4 MB; ao trocar a imagem, a anterior é removida do storage.
 - Defaults fiscais para venda de mercadoria no Simples Nacional: CFOP 5102, CSOSN 102, unidade UN, origem 0. Revisar com a contabilidade.
 
+**Decisões da Etapa 4:**
+- Um carrinho persistido por cliente (exige login). Valores sempre recalculados no servidor com o preço atual; o front só exibe.
+- Disponível para o cliente = `estoque_fisico - estoque_reservado` + o que ele mesmo já reservou.
+- Checkout (`POST /api/carrinho/checkout`) valida tudo e reserva cada item com `UPDATE ... WHERE estoque_fisico - estoque_reservado >= qtd` em ordem fixa de produto (sem deadlock). Se um item falhar, nada é reservado. Chamar de novo renova a reserva (15 min, `RESERVA_MINUTOS`).
+- Qualquer alteração no carrinho cancela a reserva ativa do cliente (ele precisa finalizar de novo).
+- Situações da reserva: `ativa`, `expirada`, `cancelada`, `convertida` (esta última será usada na Etapa 5, quando o pagamento confirmar e a reserva virar baixa de estoque).
+- Frete: valor fixo por UF + frete grátis acima de um subtotal, atrás da interface `CalculadoraFrete` (`app/services/frete_service.py`). UF sem faixa = "ainda não entregamos", bloqueia a finalização.
+
 **Decisões da Etapa 2:**
 - Access token no corpo da resposta e mantido só em memória no front-end; refresh token em cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`, rotacionado a cada `/refresh`.
 - E-mail e CPF são únicos apenas entre contas ativas (índices parciais `WHERE excluido_em IS NULL`).
@@ -196,7 +211,7 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
 - O primeiro gerente é promovido via `python -m app.cli promover-gerente <email>` após se cadastrar pelo site.
 - Testes nunca deixam dados no banco (transação desfeita), pois o banco local é o mesmo de produção.
 
-**Variáveis de ambiente:** `AMBIENTE`, `DATABASE_URL` (ou `POSTGRES_URL`), `JWT_SECRET` (obrigatória na Vercel: no mínimo 32 caracteres; sem ela o login falha). `BLOB_STORE_ID` (criada pela Vercel ao conectar um Blob store **público** ao projeto; fora da Vercel use `BLOB_READ_WRITE_TOKEN`; sem nenhuma das duas, o upload de imagens responde 503 na Vercel e grava em `public/uploads` localmente). Opcionais: `BCRYPT_ROUNDS`, `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`. Novas variáveis devem ser adicionadas em `app/core/config.py` **e** em `.env.example`.
+**Variáveis de ambiente:** `AMBIENTE`, `DATABASE_URL` (ou `POSTGRES_URL`), `JWT_SECRET` (obrigatória na Vercel: no mínimo 32 caracteres; sem ela o login falha). `BLOB_STORE_ID` (criada pela Vercel ao conectar um Blob store **público** ao projeto; fora da Vercel use `BLOB_READ_WRITE_TOKEN`; sem nenhuma das duas, o upload de imagens responde 503 na Vercel e grava em `public/uploads` localmente). `CRON_SECRET` (valor aleatório de 16+ caracteres; a Vercel o envia ao chamar os Cron Jobs). Opcionais: `BCRYPT_ROUNDS`, `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`, `RESERVA_MINUTOS`. Novas variáveis devem ser adicionadas em `app/core/config.py` **e** em `.env.example`.
 
 **Dependências fixadas:** fastapi 0.115.6, pydantic-settings 2.6.1, sqlalchemy 2.0.36, psycopg[binary] 3.2.3, alembic 1.14.0, bcrypt 4.2.1, PyJWT 2.10.1, email-validator 2.2.0, vercel-blob 0.5.0 (produção, em `requirements.txt`); uvicorn, pytest, httpx e python-dotenv (desenvolvimento, em `requirements-dev.txt`).
 

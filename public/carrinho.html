@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Carrinho – Lulora Tech</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Lulora Tech</a>
+    <nav id="menu"></nav>
+  </header>
+  <main class="largo">
+    <div id="mensagem" class="mensagem" role="alert"></div>
+    <div class="carrinho">
+      <section class="cartao">
+        <h1>Carrinho</h1>
+        <div id="itens"></div>
+        <p id="vazio" class="dica" hidden>Seu carrinho está vazio. <a href="/">Ver produtos</a></p>
+      </section>
+
+      <aside class="cartao" id="resumo" aria-live="polite">
+        <h2>Resumo</h2>
+        <label for="endereco">Entregar em</label>
+        <select id="endereco"></select>
+        <p class="dica"><a href="/conta.html">Gerenciar endereços</a></p>
+        <dl class="totais">
+          <dt>Subtotal</dt><dd id="subtotal">–</dd>
+          <dt>Frete</dt><dd id="frete">–</dd>
+          <dt class="total">Total</dt><dd class="total" id="total">–</dd>
+        </dl>
+        <ul id="avisos" class="avisos"></ul>
+        <div id="reserva" class="mensagem sucesso" hidden></div>
+        <div class="acoes">
+          <button id="finalizar" type="button" disabled>Finalizar compra</button>
+          <button id="cancelar-reserva" type="button" class="secundario" hidden>Cancelar reserva</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/carrinho.js"></script>
+</body>
+</html>

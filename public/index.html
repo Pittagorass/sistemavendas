@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sistema de Vendas</title>
+  <title>Lulora Tech</title>
   <link rel="stylesheet" href="/css/estilo.css">
 </head>
 <body>
   <header>
-    <a href="/">Sistema de Vendas</a>
-    <nav><a href="/login.html">Entrar</a><a href="/cadastro.html">Criar conta</a></nav>
+    <a href="/">Lulora Tech</a>
+    <nav id="menu"><a href="/login.html">Entrar</a><a href="/cadastro.html">Criar conta</a></nav>
   </header>
   <main class="largo">
     <div class="barra">
@@ -24,6 +24,32 @@
   <script>
     const catalogo = document.getElementById("catalogo");
     const busca = document.getElementById("busca");
+    const mensagem = document.getElementById("mensagem");
+    let logado = false;
+
+    // RF-C01 / RNF-C01: adiciona ao carrinho sem recarregar a página.
+    async function adicionarAoCarrinho(produto, botao) {
+      if (!logado) {
+        window.location.href = "/login.html";
+        return;
+      }
+      botao.disabled = true;
+      limparMensagem(mensagem);
+      try {
+        const carrinho = await Api.requisitar("/api/carrinho/itens", {
+          metodo: "POST",
+          corpo: { produto_id: produto.id, quantidade: 1 },
+        });
+        atualizarContadorCarrinho(carrinho.quantidade_itens);
+        botao.textContent = "Adicionado ✓";
+        setTimeout(() => { botao.textContent = "Adicionar ao carrinho"; }, 1500);
+      } catch (erro) {
+        if (erro.status === 401) return (window.location.href = "/login.html");
+        mostrarMensagem(mensagem, "erro", erro.message);
+      } finally {
+        botao.disabled = false;
+      }
+    }
 
     function cartao(produto) {
       const item = document.createElement("article");
@@ -59,6 +85,13 @@
         descricao.textContent = produto.descricao;
         info.appendChild(descricao);
       }
+      const botao = document.createElement("button");
+      botao.type = "button";
+      botao.textContent = produto.estoque_disponivel > 0 ? "Adicionar ao carrinho" : "Esgotado";
+      botao.disabled = produto.estoque_disponivel <= 0;
+      botao.style.marginTop = "auto";
+      botao.addEventListener("click", () => adicionarAoCarrinho(produto, botao));
+      info.appendChild(botao);
       item.appendChild(info);
       return item;
     }
@@ -71,7 +104,7 @@
         catalogo.replaceChildren(...pagina.itens.map(cartao));
         document.getElementById("vazio").hidden = pagina.itens.length > 0;
       } catch (erro) {
-        mostrarMensagem(document.getElementById("mensagem"), "erro", erro.message);
+        mostrarMensagem(mensagem, "erro", erro.message);
       }
     }
 
@@ -80,6 +113,13 @@
       clearTimeout(temporizador);
       temporizador = setTimeout(carregar, 300);
     });
+
+    (async () => {
+      logado = Boolean(await montarMenu(document.getElementById("menu")));
+      if (logado) {
+        Api.requisitar("/api/carrinho").then((c) => atualizarContadorCarrinho(c.quantidade_itens)).catch(() => {});
+      }
+    })();
     carregar();
   </script>
 </body>

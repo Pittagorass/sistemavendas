@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Limite de 4 MB: a Vercel recusa requisições acima de 4,5 MB.
     imagem_tamanho_maximo: int = 4 * 1024 * 1024
 
+    # Reserva de estoque no checkout (RNF-C02)
+    reserva_minutos: int = 15
+    # Segredo que a Vercel envia no header Authorization ao chamar os Cron Jobs.
+    cron_secret: str | None = None
+
     # A Vercel define VERCEL=1 nas funções serverless.
     vercel: str | None = None
 
