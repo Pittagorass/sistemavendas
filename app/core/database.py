@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
+from app.core.errors import ErroNegocio
 
 settings = get_settings()
 
@@ -26,11 +27,20 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 def get_db() -> Iterator[Session]:
-    """Dependência do FastAPI: abre uma sessão, faz commit no sucesso e rollback em qualquer falha."""
+    """Dependência do FastAPI: abre uma sessão, faz commit no sucesso e rollback em qualquer falha.
+
+    Exceção: um ErroNegocio com `persistir=True` grava o que foi feito antes do erro.
+    """
     db = SessionLocal()
     try:
         yield db
         db.commit()
+    except ErroNegocio as exc:
+        if exc.persistir:
+            db.commit()
+        else:
+            db.rollback()
+        raise
     except Exception:
         db.rollback()
         raise

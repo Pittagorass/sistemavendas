@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Criar conta – Sistema de Vendas</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Sistema de Vendas</a>
+    <nav><a href="/login.html">Entrar</a></nav>
+  </header>
+  <main>
+    <form id="cadastro" class="cartao" novalidate>
+      <h1>Criar conta</h1>
+      <div id="mensagem" class="mensagem" role="alert"></div>
+
+      <h2>Dados pessoais</h2>
+      <div class="grade">
+        <div class="inteiro"><label for="nome">Nome completo</label><input id="nome" name="nome" autocomplete="name" required></div>
+        <div><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+        <div><label for="cpf">CPF</label><input id="cpf" name="cpf" inputmode="numeric" placeholder="000.000.000-00" required></div>
+        <div><label for="telefone">Telefone com DDD</label><input id="telefone" name="telefone" type="tel" autocomplete="tel" placeholder="(11) 91234-5678" required></div>
+        <div><label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="new-password" required>
+          <span class="dica">Mínimo 8 caracteres, com letras e números.</span></div>
+      </div>
+
+      <h2 style="margin-top:20px">Endereço</h2>
+      <div class="grade">
+        <div><label for="cep">CEP</label><input id="cep" name="cep" inputmode="numeric" maxlength="9" placeholder="00000-000" required>
+          <span class="dica">O endereço é preenchido automaticamente.</span></div>
+        <div><label for="numero">Número</label><input id="numero" name="numero" required></div>
+        <div class="inteiro"><label for="logradouro">Logradouro</label><input id="logradouro" name="logradouro" required></div>
+        <div><label for="complemento">Complemento</label><input id="complemento" name="complemento"></div>
+        <div><label for="bairro">Bairro</label><input id="bairro" name="bairro" required></div>
+        <div><label for="cidade">Cidade</label><input id="cidade" name="cidade" required></div>
+        <div><label for="uf">UF</label><input id="uf" name="uf" maxlength="2" required></div>
+        <input type="hidden" name="codigo_ibge">
+      </div>
+
+      <label class="checkbox" style="margin-top:16px">
+        <input type="checkbox" name="aceite_termos">
+        <span>Li e aceito a Política de Privacidade e os Termos de Uso.</span>
+      </label>
+
+      <div class="acoes"><button type="submit">Criar conta</button></div>
+    </form>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const formulario = document.getElementById("cadastro");
+    const mensagem = document.getElementById("mensagem");
+    configurarCep(formulario);
+
+    formulario.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      limparMensagem(mensagem);
+      const botao = formulario.querySelector("button");
+      botao.disabled = true;
+      const valor = (nome) => formulario.querySelector(`[name=${nome}]`).value;
+      try {
+        await Api.requisitar("/api/auth/cadastro", {
+          metodo: "POST",
+          autenticado: false,
+          corpo: {
+            nome: valor("nome"),
+            email: valor("email"),
+            cpf: valor("cpf"),
+            telefone: valor("telefone"),
+            senha: valor("senha"),
+            endereco: lerEndereco(formulario),
+            aceite_termos: formulario.querySelector("[name=aceite_termos]").checked,
+          },
+        });
+        window.location.href = "/login.html?cadastro=ok";
+      } catch (erro) {
+        mostrarMensagem(mensagem, "erro", erro.message, erro.campos);
+      } finally {
+        botao.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -4,10 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sistema de Vendas</title>
+  <link rel="stylesheet" href="/css/estilo.css">
 </head>
 <body>
-  <h1>Sistema de Vendas</h1>
-  <p>Status da API: <span id="status">verificando...</span></p>
+  <header>
+    <a href="/">Sistema de Vendas</a>
+    <nav><a href="/login.html">Entrar</a><a href="/cadastro.html">Criar conta</a></nav>
+  </header>
+  <main>
+    <section class="cartao">
+      <h1>Sistema de Vendas</h1>
+      <p>Status da API: <span id="status">verificando...</span></p>
+    </section>
+  </main>
   <script>
     fetch("/api/health")
       .then((r) => r.json())

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar – Sistema de Vendas</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Sistema de Vendas</a>
+    <nav><a href="/cadastro.html">Criar conta</a></nav>
+  </header>
+  <main>
+    <form id="login" class="cartao" novalidate style="max-width:420px;margin:0 auto">
+      <h1>Entrar</h1>
+      <div id="mensagem" class="mensagem" role="alert"></div>
+      <div style="margin-bottom:12px"><label for="usuario">E-mail ou CPF</label><input id="usuario" name="login" autocomplete="username" required></div>
+      <div><label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required></div>
+      <div class="acoes"><button type="submit">Entrar</button></div>
+      <p class="dica">Ainda não tem conta? <a href="/cadastro.html">Cadastre-se</a>.</p>
+    </form>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const formulario = document.getElementById("login");
+    const mensagem = document.getElementById("mensagem");
+    if (new URLSearchParams(location.search).get("cadastro") === "ok") {
+      mostrarMensagem(mensagem, "sucesso", "Conta criada! Faça login para continuar.");
+    }
+
+    formulario.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      limparMensagem(mensagem);
+      const botao = formulario.querySelector("button");
+      botao.disabled = true;
+      try {
+        await Api.requisitar("/api/auth/login", {
+          metodo: "POST",
+          autenticado: false,
+          corpo: { login: formulario.login.value, senha: formulario.senha.value },
+        });
+        window.location.href = "/conta.html";
+      } catch (erro) {
+        mostrarMensagem(mensagem, "erro", erro.message, erro.campos);
+      } finally {
+        botao.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

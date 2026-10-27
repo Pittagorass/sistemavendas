@@ -129,7 +129,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 | Etapa | Escopo | Status |
 | :--- | :--- | :--- |
 | 1 | Fundação: projeto FastAPI, conexão PostgreSQL, Alembic, CI e deploy na Vercel | **Concluída** (2026-10-26): testes e CI passando; publicada em https://sistemavendas-sigma.vercel.app com conexão ao Neon (sa-east-1) validada |
-| 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | Pendente |
+| 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | **Concluída localmente** (2026-10-26): RF/RNF-CAD01–06 e RF/RNF-SEC01–03 implementados, 50 testes passando, fluxo validado no navegador. Pendente: publicar e configurar `JWT_SECRET` na Vercel |
 | 3 | Módulo 4: produtos, estoque e painel do gerente | Pendente |
 | 4 | Módulo 3: carrinho, frete e reserva | Pendente |
 | 5 | Módulo 5 e RF-F01/RF-F04: checkout, pagamento e pedido | Pendente |
@@ -137,32 +137,53 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 
 > Atualize esta tabela ao concluir cada etapa.
 
-## 7. Estrutura do Código (estabelecida na Etapa 1)
+## 7. Estrutura do Código (Etapas 1 e 2)
 ```
 app/main.py               Cria o FastAPI (`app`), registra handlers de erro e inclui os routers.
                           A Vercel detecta este arquivo automaticamente (zero-config): NÃO criar api/index.py
                           nem rewrites no vercel.json, pois desviam as rotas /api/* e causam 404.
+app/dev.py                Só para desenvolvimento local: app.main + app.mount de public/ (uvicorn app.dev:app)
+app/cli.py                Comandos administrativos (python -m app.cli promover-gerente <email>)
 app/core/config.py        Settings (pydantic-settings) lidas de variáveis de ambiente / .env
-app/core/database.py      engine, SessionLocal e dependência get_db (commit/rollback automático)
-app/core/errors.py        ErroNegocio e formato padrão de erro JSON
-app/routes/               Routers FastAPI (um arquivo por módulo: auth.py, produtos.py, ...)
+app/core/database.py      engine, SessionLocal e dependência get_db (commit/rollback automático;
+                          ErroNegocio(persistir=True) grava antes de responder o erro)
+app/core/errors.py        ErroNegocio e formato padrão de erro JSON (inclusive erros de validação traduzidos)
+app/core/security.py      bcrypt, criação/validação de JWT, refresh tokens (guardados como SHA-256)
+app/core/validadores.py   CPF, telefone, CEP, UF e política de senha
+app/routes/deps.py        usuario_atual, exigir_gerente, ip_cliente
+app/routes/               Routers FastAPI (um arquivo por módulo: autenticacao.py, usuarios.py, ...)
 app/services/             Regras de negócio (um serviço por módulo)
 app/repositories/         Consultas ao banco (únicos que usam select/insert/update)
 app/models/base.py        Base declarativa, convenção de nomes de constraints e ModeloBase
 app/models/__init__.py    Importa todos os modelos (necessário para o autogenerate do Alembic)
-app/schemas/              Schemas Pydantic de entrada/saída da API (criar a partir da Etapa 2)
+app/schemas/              Schemas Pydantic de entrada/saída da API
 app/integrations/         Clientes de serviços externos atrás de interfaces (CEP, pagamento, NF-e, e-mail, frete, storage)
 migrations/               Alembic (versions/ contém as migrações)
-public/                   Front-end estático HTML/CSS/JS servido pelo CDN da Vercel (não usar app.mount nele)
-tests/                    pytest
+public/                   Front-end estático (index, cadastro, login, conta + css/ e js/api.js),
+                          servido pelo CDN da Vercel (não usar app.mount em app/main.py)
+tests/                    pytest (conftest.py: fixture db_transacional desfaz tudo ao final de cada teste)
 .github/workflows/ci.yml  CI: PostgreSQL 16 + alembic upgrade head + pytest
 ```
 
-**Rotas já existentes:** `GET /api/health` (API no ar) e `GET /api/health/db` (conexão com o banco).
+**Rotas existentes:**
+- `GET /api/health`, `GET /api/health/db`
+- `POST /api/auth/cadastro`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`
+- `GET|PATCH|DELETE /api/usuarios/me`, `POST /api/usuarios/me/senha`, `GET /api/usuarios/me/exportar`
+- `POST /api/usuarios/me/enderecos`, `PUT|DELETE /api/usuarios/me/enderecos/{id}`, `POST /api/usuarios/me/enderecos/{id}/principal`
+- `POST /api/usuarios/{id}/promover-gerente` (somente gerente)
 
-**Variáveis de ambiente:** `AMBIENTE`, `DATABASE_URL`, `JWT_SECRET` (ver `.env.example`). Novas variáveis devem ser adicionadas em `app/core/config.py` **e** em `.env.example`.
+**Tabelas existentes:** `usuarios`, `enderecos`, `refresh_tokens`, `tokens_revogados`, `tentativas_login`.
 
-**Dependências fixadas:** fastapi 0.115.6, pydantic-settings 2.6.1, sqlalchemy 2.0.36, psycopg[binary] 3.2.3, alembic 1.14.0 (produção, em `requirements.txt`); uvicorn, pytest e httpx (desenvolvimento, em `requirements-dev.txt`).
+**Decisões da Etapa 2:**
+- Access token no corpo da resposta e mantido só em memória no front-end; refresh token em cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`, rotacionado a cada `/refresh`.
+- E-mail e CPF são únicos apenas entre contas ativas (índices parciais `WHERE excluido_em IS NULL`).
+- Exclusão de conta anonimiza nome, e-mail, CPF, telefone, senha e endereços. Quando houver pedidos/NF-e (Etapas 5 e 6), o CPF deve ser retido nos documentos fiscais, não na conta.
+- O primeiro gerente é promovido via `python -m app.cli promover-gerente <email>` após se cadastrar pelo site.
+- Testes nunca deixam dados no banco (transação desfeita), pois o banco local é o mesmo de produção.
+
+**Variáveis de ambiente:** `AMBIENTE`, `DATABASE_URL` (ou `POSTGRES_URL`), `JWT_SECRET` (obrigatória na Vercel: no mínimo 32 caracteres; sem ela o login falha). Opcionais: `BCRYPT_ROUNDS`, `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`. Novas variáveis devem ser adicionadas em `app/core/config.py` **e** em `.env.example`.
+
+**Dependências fixadas:** fastapi 0.115.6, pydantic-settings 2.6.1, sqlalchemy 2.0.36, psycopg[binary] 3.2.3, alembic 1.14.0, bcrypt 4.2.1, PyJWT 2.10.1, email-validator 2.2.0 (produção, em `requirements.txt`); uvicorn, pytest, httpx e python-dotenv (desenvolvimento, em `requirements-dev.txt`).
 
 ---
 

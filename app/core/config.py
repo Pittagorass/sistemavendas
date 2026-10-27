@@ -1,11 +1,12 @@
 """Configurações da aplicação lidas de variáveis de ambiente (RNF-TEC03 / Diretriz 5)."""
 
 from functools import lru_cache
-
 from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+JWT_SECRET_PADRAO = "troque-este-segredo"
 
 
 class Settings(BaseSettings):
@@ -17,7 +18,19 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://postgres:postgres@localhost:5432/sistemavendas",
         validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL"),
     )
-    jwt_secret: str = "troque-este-segredo"
+    jwt_secret: str = JWT_SECRET_PADRAO
+    access_token_minutos: int = 15
+    refresh_token_dias: int = 7
+    # Custo do bcrypt (RNF-TEC06: mínimo 12). Os testes reduzem para acelerar.
+    bcrypt_rounds: int = 12
+
+    # Brute force (RNF-SEC02 / RNF-SEC03)
+    max_falhas_login: int = 5
+    bloqueio_minutos: int = 15
+    max_falhas_login_por_ip: int = 20
+
+    # Versão vigente da Política de Privacidade / Termos de Uso (RF-CAD06)
+    versao_termos: str = "1.0"
 
     # A Vercel define VERCEL=1 nas funções serverless.
     vercel: str | None = None
@@ -25,6 +38,10 @@ class Settings(BaseSettings):
     @property
     def serverless(self) -> bool:
         return self.vercel is not None
+
+    @property
+    def jwt_secret_inseguro(self) -> bool:
+        return self.jwt_secret == JWT_SECRET_PADRAO or len(self.jwt_secret) < 32
 
     @property
     def sqlalchemy_url(self) -> str:

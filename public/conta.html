@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minha conta – Sistema de Vendas</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Sistema de Vendas</a>
+    <nav><button id="sair" class="secundario" type="button">Sair</button></nav>
+  </header>
+  <main>
+    <div id="mensagem" class="mensagem" role="alert"></div>
+
+    <form id="perfil" class="cartao" novalidate>
+      <h1>Minha conta <span id="perfil-acesso" class="selo"></span></h1>
+      <div class="grade">
+        <div class="inteiro"><label for="nome">Nome completo</label><input id="nome" name="nome" required></div>
+        <div><label for="email">E-mail</label><input id="email" readonly></div>
+        <div><label for="cpf">CPF</label><input id="cpf" readonly></div>
+        <div><label for="telefone">Telefone com DDD</label><input id="telefone" name="telefone" type="tel" required></div>
+      </div>
+      <div class="acoes"><button type="submit">Salvar alterações</button></div>
+    </form>
+
+    <section class="cartao">
+      <h2>Endereços</h2>
+      <div id="enderecos"></div>
+      <details style="margin-top:12px">
+        <summary>Adicionar endereço</summary>
+        <form id="novo-endereco" novalidate style="margin-top:12px">
+          <div class="grade">
+            <div><label for="cep">CEP</label><input id="cep" name="cep" inputmode="numeric" maxlength="9" required></div>
+            <div><label for="numero">Número</label><input id="numero" name="numero" required></div>
+            <div class="inteiro"><label for="logradouro">Logradouro</label><input id="logradouro" name="logradouro" required></div>
+            <div><label for="complemento">Complemento</label><input id="complemento" name="complemento"></div>
+            <div><label for="bairro">Bairro</label><input id="bairro" name="bairro" required></div>
+            <div><label for="cidade">Cidade</label><input id="cidade" name="cidade" required></div>
+            <div><label for="uf">UF</label><input id="uf" name="uf" maxlength="2" required></div>
+            <input type="hidden" name="codigo_ibge">
+          </div>
+          <div class="acoes"><button type="submit">Adicionar</button></div>
+        </form>
+      </details>
+    </section>
+
+    <form id="senha" class="cartao" novalidate>
+      <h2>Alterar senha</h2>
+      <div class="grade">
+        <div><label for="senha-atual">Senha atual</label><input id="senha-atual" name="senha_atual" type="password" autocomplete="current-password"></div>
+        <div><label for="nova-senha">Nova senha</label><input id="nova-senha" name="nova_senha" type="password" autocomplete="new-password"></div>
+      </div>
+      <p class="dica">Por segurança, você será desconectado após a troca.</p>
+      <div class="acoes"><button type="submit">Alterar senha</button></div>
+    </form>
+
+    <section class="cartao">
+      <h2>Privacidade (LGPD)</h2>
+      <p class="dica">Você pode baixar uma cópia dos seus dados ou excluir sua conta. A exclusão anonimiza seus dados pessoais e não pode ser desfeita.</p>
+      <div class="acoes">
+        <button id="exportar" class="secundario" type="button">Baixar meus dados</button>
+        <button id="excluir" class="perigo" type="button">Excluir minha conta</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const mensagem = document.getElementById("mensagem");
+    const formPerfil = document.getElementById("perfil");
+    const formEndereco = document.getElementById("novo-endereco");
+    const formSenha = document.getElementById("senha");
+    configurarCep(formEndereco);
+
+    function irParaLogin() {
+      window.location.href = "/login.html";
+    }
+
+    function textoEndereco(e) {
+      const complemento = e.complemento ? `, ${e.complemento}` : "";
+      return `${e.logradouro}, ${e.numero}${complemento} – ${e.bairro}, ${e.cidade}/${e.uf} – CEP ${e.cep}`;
+    }
+
+    function exibir(usuario) {
+      formPerfil.nome.value = usuario.nome;
+      formPerfil.telefone.value = usuario.telefone;
+      document.getElementById("email").value = usuario.email;
+      document.getElementById("cpf").value = usuario.cpf || "";
+      document.getElementById("perfil-acesso").textContent = usuario.perfil;
+
+      const lista = document.getElementById("enderecos");
+      lista.replaceChildren();
+      for (const endereco of usuario.enderecos) {
+        const item = document.createElement("div");
+        item.className = "endereco";
+        const texto = document.createElement("span");
+        texto.textContent = textoEndereco(endereco);
+        if (endereco.principal) {
+          const selo = document.createElement("span");
+          selo.className = "selo";
+          selo.textContent = "principal";
+          texto.appendChild(selo);
+        }
+        const acoes = document.createElement("span");
+        if (!endereco.principal) {
+          acoes.append(
+            botao("Tornar principal", "secundario", () => acaoEndereco(`/api/usuarios/me/enderecos/${endereco.id}/principal`, "POST")),
+            botao("Remover", "secundario", () => acaoEndereco(`/api/usuarios/me/enderecos/${endereco.id}`, "DELETE")),
+          );
+        }
+        item.append(texto, acoes);
+        lista.appendChild(item);
+      }
+    }
+
+    function botao(rotulo, classe, aoClicar) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = classe;
+      b.textContent = rotulo;
+      b.style.marginLeft = "6px";
+      b.addEventListener("click", aoClicar);
+      return b;
+    }
+
+    async function executar(acao, sucesso) {
+      limparMensagem(mensagem);
+      try {
+        const resultado = await acao();
+        if (sucesso) mostrarMensagem(mensagem, "sucesso", sucesso);
+        return resultado;
+      } catch (erro) {
+        if (erro.status === 401) return irParaLogin();
+        mostrarMensagem(mensagem, "erro", erro.message, erro.campos);
+      }
+    }
+
+    async function acaoEndereco(caminho, metodo) {
+      const usuario = await executar(() => Api.requisitar(caminho, { metodo }), "Endereços atualizados.");
+      if (usuario) exibir(usuario);
+    }
+
+    formPerfil.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      const usuario = await executar(
+        () => Api.requisitar("/api/usuarios/me", {
+          metodo: "PATCH",
+          corpo: { nome: formPerfil.nome.value, telefone: formPerfil.telefone.value },
+        }),
+        "Dados atualizados.",
+      );
+      if (usuario) exibir(usuario);
+    });
+
+    formEndereco.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      const usuario = await executar(
+        () => Api.requisitar("/api/usuarios/me/enderecos", { metodo: "POST", corpo: lerEndereco(formEndereco) }),
+        "Endereço adicionado.",
+      );
+      if (usuario) {
+        formEndereco.reset();
+        exibir(usuario);
+      }
+    });
+
+    formSenha.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      const ok = await executar(() => Api.requisitar("/api/usuarios/me/senha", {
+        metodo: "POST",
+        corpo: { senha_atual: formSenha.senha_atual.value, nova_senha: formSenha.nova_senha.value },
+      }).then(() => true));
+      if (ok) {
+        alert("Senha alterada. Faça login novamente.");
+        irParaLogin();
+      }
+    });
+
+    document.getElementById("exportar").addEventListener("click", async () => {
+      const dados = await executar(() => Api.requisitar("/api/usuarios/me/exportar"));
+      if (!dados) return;
+      const arquivo = new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(arquivo);
+      link.download = "meus-dados.json";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
+    document.getElementById("excluir").addEventListener("click", async () => {
+      const senha = prompt("Para confirmar a exclusão definitiva da conta, digite sua senha:");
+      if (!senha) return;
+      const ok = await executar(() => Api.requisitar("/api/usuarios/me", { metodo: "DELETE", corpo: { senha } }).then(() => true));
+      if (ok) {
+        alert("Sua conta foi excluída.");
+        window.location.href = "/";
+      }
+    });
+
+    document.getElementById("sair").addEventListener("click", async () => {
+      try {
+        await Api.requisitar("/api/auth/logout", { metodo: "POST" });
+      } finally {
+        irParaLogin();
+      }
+    });
+
+    (async () => {
+      if (!(await Api.renovarSessao())) return irParaLogin();
+      const usuario = await executar(() => Api.requisitar("/api/usuarios/me"));
+      if (usuario) exibir(usuario);
+    })();
+  </script>
+</body>
+</html>

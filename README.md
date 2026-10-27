@@ -26,12 +26,23 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 copy .env.example .env      # depois edite DATABASE_URL e JWT_SECRET
 alembic upgrade head
-uvicorn app.main:app --reload
+uvicorn app.dev:app --reload
 ```
 
+- Site: http://localhost:8000 (cadastro, login e "Minha conta")
 - API: http://localhost:8000/api/health
 - Banco: http://localhost:8000/api/health/db
 - Documentação interativa: http://localhost:8000/docs
+
+`app.dev` serve também as páginas de `public/`; na Vercel elas vêm do CDN e o entrypoint é `app/main.py`.
+
+## Primeiro gerente
+
+Cadastre-se pelo site e depois promova a conta:
+
+```powershell
+python -m app.cli promover-gerente seu-email@exemplo.com
+```
 
 ## Testes
 
