@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Produtos – Painel do gerente</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Sistema de Vendas</a>
+    <nav><a href="/conta.html">Minha conta</a><button id="sair" class="secundario" type="button" style="margin-left:16px">Sair</button></nav>
+  </header>
+  <main class="largo">
+    <div id="mensagem" class="mensagem" role="alert"></div>
+
+    <section class="cartao" id="painel" hidden>
+      <h1>Produtos e estoque</h1>
+      <div class="barra">
+        <input type="search" id="busca" placeholder="Buscar pelo nome" aria-label="Buscar pelo nome">
+        <label class="checkbox"><input type="checkbox" id="incluir-inativos" checked> Mostrar inativos</label>
+        <button id="novo" type="button">Novo produto</button>
+      </div>
+      <div class="tabela-rolagem">
+        <table>
+          <thead>
+            <tr>
+              <th></th><th>Produto</th><th class="numero">Preço</th>
+              <th class="numero">Físico</th><th class="numero">Reservado</th><th class="numero">Disponível</th>
+              <th>Situação</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="lista"></tbody>
+        </table>
+      </div>
+      <p id="resumo" class="dica"></p>
+    </section>
+  </main>
+
+  <!-- Cadastro e edição (RF-PROD01 / RF-PROD02) -->
+  <dialog id="dialogo-produto">
+    <form id="form-produto" novalidate>
+      <h2 id="titulo-produto">Novo produto</h2>
+      <div id="mensagem-produto" class="mensagem" role="alert"></div>
+      <div class="grade">
+        <div class="inteiro"><label for="p-nome">Nome</label><input id="p-nome" name="nome" required maxlength="150"></div>
+        <div class="inteiro"><label for="p-descricao">Descrição</label><textarea id="p-descricao" name="descricao" rows="3" maxlength="5000"></textarea></div>
+        <div><label for="p-preco">Preço de venda (R$)</label><input id="p-preco" name="preco" inputmode="decimal" placeholder="0,00" required></div>
+        <div id="campo-estoque-inicial"><label for="p-estoque">Estoque inicial</label><input id="p-estoque" name="estoque_inicial" type="number" min="0" value="0"></div>
+        <div id="campo-ativo" hidden><label class="checkbox" style="margin-top:28px"><input type="checkbox" name="ativo"> Visível no catálogo</label></div>
+        <div class="inteiro"><label for="p-imagem">Imagem (JPG, PNG ou WebP, até 4 MB)</label><input id="p-imagem" name="imagem" type="file" accept="image/jpeg,image/png,image/webp"></div>
+      </div>
+      <fieldset>
+        <legend>Dados fiscais (NF-e)</legend>
+        <div class="grade">
+          <div><label for="p-ncm">NCM</label><input id="p-ncm" name="ncm" inputmode="numeric" maxlength="10" placeholder="00000000" required></div>
+          <div><label for="p-cfop">CFOP</label><input id="p-cfop" name="cfop" inputmode="numeric" maxlength="5" value="5102"></div>
+          <div><label for="p-cst">CST / CSOSN</label><input id="p-cst" name="cst_csosn" inputmode="numeric" maxlength="3" value="102"></div>
+          <div><label for="p-unidade">Unidade</label><input id="p-unidade" name="unidade" maxlength="6" value="UN"></div>
+          <div class="inteiro"><label for="p-origem">Origem da mercadoria</label>
+            <select id="p-origem" name="origem">
+              <option value="0">0 – Nacional</option>
+              <option value="1">1 – Estrangeira, importação direta</option>
+              <option value="2">2 – Estrangeira, adquirida no mercado interno</option>
+              <option value="3">3 – Nacional, conteúdo de importação entre 40% e 70%</option>
+              <option value="4">4 – Nacional, produção por processos básicos</option>
+              <option value="5">5 – Nacional, conteúdo de importação até 40%</option>
+              <option value="6">6 – Estrangeira, importação direta sem similar nacional</option>
+              <option value="7">7 – Estrangeira, mercado interno sem similar nacional</option>
+              <option value="8">8 – Nacional, conteúdo de importação acima de 70%</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+      <div class="acoes">
+        <button type="submit">Salvar</button>
+        <button type="button" class="secundario" data-fechar>Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Movimentação de estoque (RF-PROD03) -->
+  <dialog id="dialogo-estoque">
+    <form id="form-estoque" novalidate>
+      <h2>Movimentar estoque</h2>
+      <p id="estoque-produto" class="dica"></p>
+      <div id="mensagem-estoque" class="mensagem" role="alert"></div>
+      <div class="grade">
+        <div><label for="e-tipo">Tipo</label>
+          <select id="e-tipo" name="tipo">
+            <option value="entrada">Entrada (soma ao estoque)</option>
+            <option value="saida">Saída (subtrai do estoque)</option>
+            <option value="ajuste">Ajuste de inventário (define o saldo)</option>
+          </select>
+        </div>
+        <div><label for="e-quantidade" id="rotulo-quantidade">Quantidade</label><input id="e-quantidade" name="quantidade" type="number" min="0" required></div>
+        <div class="inteiro"><label for="e-motivo">Motivo</label><input id="e-motivo" name="motivo" maxlength="255" placeholder="Ex.: compra do fornecedor, avaria, contagem de inventário" required></div>
+      </div>
+      <div class="acoes">
+        <button type="submit">Registrar</button>
+        <button type="button" class="secundario" data-fechar>Cancelar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Histórico de movimentações -->
+  <dialog id="dialogo-historico">
+    <h2>Histórico de estoque</h2>
+    <p id="historico-produto" class="dica"></p>
+    <div class="tabela-rolagem">
+      <table>
+        <thead><tr><th>Data</th><th>Tipo</th><th class="numero">Variação</th><th class="numero">Saldo</th><th>Motivo</th></tr></thead>
+        <tbody id="historico"></tbody>
+      </table>
+    </div>
+    <div class="acoes"><button type="button" class="secundario" data-fechar>Fechar</button></div>
+  </dialog>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/admin-produtos.js"></script>
+</body>
+</html>

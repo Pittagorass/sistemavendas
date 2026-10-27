@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     # Versão vigente da Política de Privacidade / Termos de Uso (RF-CAD06)
     versao_termos: str = "1.0"
 
+    # Vercel Blob (RNF-PROD01). Na Vercel, conectar o store ao projeto define BLOB_STORE_ID;
+    # fora dela, use BLOB_READ_WRITE_TOKEN. Sem nenhum dos dois, o ambiente local grava em public/uploads.
+    blob_store_id: str | None = None
+    blob_read_write_token: str | None = None
+    # Limite de 4 MB: a Vercel recusa requisições acima de 4,5 MB.
+    imagem_tamanho_maximo: int = 4 * 1024 * 1024
+
     # A Vercel define VERCEL=1 nas funções serverless.
     vercel: str | None = None
 

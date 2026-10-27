@@ -11,17 +11,76 @@
     <a href="/">Sistema de Vendas</a>
     <nav><a href="/login.html">Entrar</a><a href="/cadastro.html">Criar conta</a></nav>
   </header>
-  <main>
-    <section class="cartao">
-      <h1>Sistema de Vendas</h1>
-      <p>Status da API: <span id="status">verificando...</span></p>
-    </section>
+  <main class="largo">
+    <div class="barra">
+      <input type="search" id="busca" placeholder="Buscar produtos" aria-label="Buscar produtos">
+    </div>
+    <div id="mensagem" class="mensagem" role="alert"></div>
+    <section id="catalogo" class="catalogo" aria-live="polite"></section>
+    <p id="vazio" class="dica" hidden>Nenhum produto encontrado.</p>
   </main>
+
+  <script src="/js/api.js"></script>
   <script>
-    fetch("/api/health")
-      .then((r) => r.json())
-      .then((dados) => { document.getElementById("status").textContent = dados.status; })
-      .catch(() => { document.getElementById("status").textContent = "indisponível"; });
+    const catalogo = document.getElementById("catalogo");
+    const busca = document.getElementById("busca");
+
+    function cartao(produto) {
+      const item = document.createElement("article");
+      item.className = "produto";
+
+      if (produto.imagem_url) {
+        const img = document.createElement("img");
+        img.src = produto.imagem_url;
+        img.alt = produto.nome;
+        img.loading = "lazy";
+        item.appendChild(img);
+      } else {
+        const sem = document.createElement("div");
+        sem.className = "sem-imagem";
+        sem.textContent = "Sem imagem";
+        item.appendChild(sem);
+      }
+
+      const info = document.createElement("div");
+      info.className = "info";
+      const nome = document.createElement("strong");
+      nome.textContent = produto.nome;
+      const preco = document.createElement("span");
+      preco.className = "preco";
+      preco.textContent = formatarPreco(produto.preco);
+      const estoque = document.createElement("span");
+      estoque.className = "dica";
+      estoque.textContent = produto.estoque_disponivel > 0 ? `${produto.estoque_disponivel} em estoque` : "Esgotado";
+      info.append(nome, preco, estoque);
+      if (produto.descricao) {
+        const descricao = document.createElement("span");
+        descricao.className = "dica";
+        descricao.textContent = produto.descricao;
+        info.appendChild(descricao);
+      }
+      item.appendChild(info);
+      return item;
+    }
+
+    async function carregar() {
+      const parametros = new URLSearchParams({ limite: "100" });
+      if (busca.value.trim()) parametros.set("busca", busca.value.trim());
+      try {
+        const pagina = await Api.requisitar(`/api/produtos?${parametros}`, { autenticado: false });
+        catalogo.replaceChildren(...pagina.itens.map(cartao));
+        document.getElementById("vazio").hidden = pagina.itens.length > 0;
+      } catch (erro) {
+        mostrarMensagem(document.getElementById("mensagem"), "erro", erro.message);
+      }
+    }
+
+    let temporizador;
+    busca.addEventListener("input", () => {
+      clearTimeout(temporizador);
+      temporizador = setTimeout(carregar, 300);
+    });
+    carregar();
   </script>
 </body>
 </html>

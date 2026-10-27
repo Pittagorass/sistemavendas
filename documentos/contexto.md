@@ -65,7 +65,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 | **RF-PROD01** | Funcional | Cadastro de Produtos | O gerente cadastra itens com nome, descrição, preço de venda, imagem, quantidade física inicial e **dados fiscais**: NCM, CFOP, CST/CSOSN, unidade comercial e origem da mercadoria. |
 | **RF-PROD02** | Funcional | Edição e Desativação | Permitir alterar atributos de produtos e desativar (exclusão lógica, `ativo = false`) itens obsoletos. Produtos com pedidos nunca são excluídos fisicamente. |
 | **RF-PROD03** [NOVO] | Funcional | Movimentação de Estoque | Toda entrada, saída, ajuste ou venda gera um registro em `movimentacoes_estoque` (tipo, quantidade, motivo, usuário, data), servindo de auditoria. |
-| **RNF-PROD01** | Não Funcional | Armazenamento de Imagens | Imagens armazenadas no Vercel Blob; o PostgreSQL guarda apenas a URL. Aceitar JPG/PNG/WebP até 5 MB. |
+| **RNF-PROD01** | Não Funcional | Armazenamento de Imagens | Imagens armazenadas no Vercel Blob; o PostgreSQL guarda apenas a URL. Aceitar JPG/PNG/WebP até 4 MB (a Vercel limita o corpo das requisições a 4,5 MB), com o formato verificado pelo conteúdo do arquivo. |
 | **RNF-PROD02** | Não Funcional | Sincronismo de Baixas | A baixa do estoque físico ocorre **na mesma transação ACID** que confirma o pagamento do pedido, garantindo que estoque e vendas nunca fiquem divergentes. |
 
 ### Módulo 5: Pagamento [NOVO]
@@ -130,7 +130,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 | :--- | :--- | :--- |
 | 1 | Fundação: projeto FastAPI, conexão PostgreSQL, Alembic, CI e deploy na Vercel | **Concluída** (2026-10-26): testes e CI passando; publicada em https://sistemavendas-sigma.vercel.app com conexão ao Neon (sa-east-1) validada |
 | 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | **Concluída** (2026-10-27): RF/RNF-CAD01–06 e RF/RNF-SEC01–03 implementados, 50 testes passando, publicada na Vercel com cadastro e login validados em produção |
-| 3 | Módulo 4: produtos, estoque e painel do gerente | Pendente |
+| 3 | Módulo 4: produtos, estoque e painel do gerente | **Concluída localmente** (2026-10-27): RF-PROD01–03 e RNF-PROD01 implementados, testes passando. Pendente: publicar, criar o Blob store público na Vercel e testar o painel com a conta de gerente |
 | 4 | Módulo 3: carrinho, frete e reserva | Pendente |
 | 5 | Módulo 5 e RF-F01/RF-F04: checkout, pagamento e pedido | Pendente |
 | 6 | Módulo 6: NF-e em homologação e envio de documentos | Pendente |
@@ -158,9 +158,12 @@ app/models/base.py        Base declarativa, convenção de nomes de constraints 
 app/models/__init__.py    Importa todos os modelos (necessário para o autogenerate do Alembic)
 app/schemas/              Schemas Pydantic de entrada/saída da API
 app/integrations/         Clientes de serviços externos atrás de interfaces (CEP, pagamento, NF-e, e-mail, frete, storage)
+app/integrations/armazenamento.py  Imagens: Vercel Blob (store público) ou pasta local public/uploads em desenvolvimento.
+                          Rotas recebem via Depends(obter_armazenamento); testes substituem por um falso.
 migrations/               Alembic (versions/ contém as migrações)
-public/                   Front-end estático (index, cadastro, login, conta + css/ e js/api.js),
-                          servido pelo CDN da Vercel (não usar app.mount em app/main.py)
+public/                   Front-end estático (index = catálogo, cadastro, login, conta, admin/produtos.html
+                          + css/, js/api.js, js/admin-produtos.js), servido pelo CDN da Vercel
+                          (não usar app.mount em app/main.py)
 tests/                    pytest (conftest.py: fixture db_transacional desfaz tudo ao final de cada teste)
 .github/workflows/ci.yml  CI: PostgreSQL 16 + alembic upgrade head + pytest
 ```
@@ -171,8 +174,20 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
 - `GET|PATCH|DELETE /api/usuarios/me`, `POST /api/usuarios/me/senha`, `GET /api/usuarios/me/exportar`
 - `POST /api/usuarios/me/enderecos`, `PUT|DELETE /api/usuarios/me/enderecos/{id}`, `POST /api/usuarios/me/enderecos/{id}/principal`
 - `POST /api/usuarios/{id}/promover-gerente` (somente gerente)
+- Catálogo público: `GET /api/produtos` (`busca`, `limite`, `deslocamento`), `GET /api/produtos/{id}` (só ativos)
+- Painel do gerente: `GET|POST /api/admin/produtos`, `GET|PATCH /api/admin/produtos/{id}`,
+  `POST /api/admin/produtos/{id}/estoque`, `GET /api/admin/produtos/{id}/movimentacoes`,
+  `PUT /api/admin/produtos/{id}/imagem` (corpo = arquivo da imagem, sem multipart)
 
-**Tabelas existentes:** `usuarios`, `enderecos`, `refresh_tokens`, `tokens_revogados`, `tentativas_login`.
+**Tabelas existentes:** `usuarios`, `enderecos`, `refresh_tokens`, `tokens_revogados`, `tentativas_login`, `produtos`, `movimentacoes_estoque`.
+
+**Decisões da Etapa 3:**
+- Estoque disponível = `estoque_fisico - estoque_reservado`. `estoque_reservado` já existe (sempre 0 até a Etapa 4) e uma constraint impede reservado > físico.
+- O estoque só muda por `POST .../estoque` (tipos `entrada`, `saida` e `ajuste`; no ajuste a quantidade é o novo saldo contado). Cada mudança trava a linha do produto (`SELECT ... FOR UPDATE`) e grava `movimentacoes_estoque` com a variação, o saldo resultante, o motivo e o gerente. O tipo `venda` fica para a Etapa 5.
+- Produtos nunca são excluídos: são desativados (`ativo=false`) e somem do catálogo público.
+- O catálogo público expõe apenas nome, descrição, preço, imagem e estoque disponível; dados fiscais e estoque físico/reservado só no painel.
+- Imagens: o formato é identificado pelos bytes iniciais (JPG/PNG/WebP), limite de 4 MB; ao trocar a imagem, a anterior é removida do storage.
+- Defaults fiscais para venda de mercadoria no Simples Nacional: CFOP 5102, CSOSN 102, unidade UN, origem 0. Revisar com a contabilidade.
 
 **Decisões da Etapa 2:**
 - Access token no corpo da resposta e mantido só em memória no front-end; refresh token em cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`, rotacionado a cada `/refresh`.
@@ -181,9 +196,9 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
 - O primeiro gerente é promovido via `python -m app.cli promover-gerente <email>` após se cadastrar pelo site.
 - Testes nunca deixam dados no banco (transação desfeita), pois o banco local é o mesmo de produção.
 
-**Variáveis de ambiente:** `AMBIENTE`, `DATABASE_URL` (ou `POSTGRES_URL`), `JWT_SECRET` (obrigatória na Vercel: no mínimo 32 caracteres; sem ela o login falha). Opcionais: `BCRYPT_ROUNDS`, `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`. Novas variáveis devem ser adicionadas em `app/core/config.py` **e** em `.env.example`.
+**Variáveis de ambiente:** `AMBIENTE`, `DATABASE_URL` (ou `POSTGRES_URL`), `JWT_SECRET` (obrigatória na Vercel: no mínimo 32 caracteres; sem ela o login falha). `BLOB_STORE_ID` (criada pela Vercel ao conectar um Blob store **público** ao projeto; fora da Vercel use `BLOB_READ_WRITE_TOKEN`; sem nenhuma das duas, o upload de imagens responde 503 na Vercel e grava em `public/uploads` localmente). Opcionais: `BCRYPT_ROUNDS`, `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`. Novas variáveis devem ser adicionadas em `app/core/config.py` **e** em `.env.example`.
 
-**Dependências fixadas:** fastapi 0.115.6, pydantic-settings 2.6.1, sqlalchemy 2.0.36, psycopg[binary] 3.2.3, alembic 1.14.0, bcrypt 4.2.1, PyJWT 2.10.1, email-validator 2.2.0 (produção, em `requirements.txt`); uvicorn, pytest, httpx e python-dotenv (desenvolvimento, em `requirements-dev.txt`).
+**Dependências fixadas:** fastapi 0.115.6, pydantic-settings 2.6.1, sqlalchemy 2.0.36, psycopg[binary] 3.2.3, alembic 1.14.0, bcrypt 4.2.1, PyJWT 2.10.1, email-validator 2.2.0, vercel-blob 0.5.0 (produção, em `requirements.txt`); uvicorn, pytest, httpx e python-dotenv (desenvolvimento, em `requirements-dev.txt`).
 
 ---
 

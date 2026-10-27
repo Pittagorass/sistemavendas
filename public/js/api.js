@@ -11,14 +11,16 @@ const Api = {
   },
 
   async requisitar(caminho, { metodo = "GET", corpo, autenticado = true, tentarRenovar = true } = {}) {
+    // Arquivos (Blob/File) vão no corpo cru; o resto vai como JSON.
+    const arquivo = corpo instanceof Blob;
     const cabecalhos = {};
-    if (corpo !== undefined) cabecalhos["Content-Type"] = "application/json";
+    if (corpo !== undefined) cabecalhos["Content-Type"] = arquivo ? corpo.type || "application/octet-stream" : "application/json";
     if (autenticado && this.token) cabecalhos["Authorization"] = `Bearer ${this.token}`;
 
     const resposta = await fetch(caminho, {
       method: metodo,
       headers: cabecalhos,
-      body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
+      body: corpo === undefined ? undefined : arquivo ? corpo : JSON.stringify(corpo),
       credentials: "same-origin",
     });
 
@@ -37,7 +39,16 @@ const Api = {
   },
 };
 
+const formatoMoeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+function formatarPreco(valor) {
+  return formatoMoeda.format(Number(valor));
+}
+
 const ROTULOS_CAMPOS = {
+  preco: "Preço", descricao: "Descrição", estoque_inicial: "Estoque inicial", quantidade: "Quantidade",
+  motivo: "Motivo", tipo: "Tipo", ncm: "NCM", cfop: "CFOP", cst_csosn: "CST/CSOSN", unidade: "Unidade",
+  origem: "Origem",
   nome: "Nome", email: "E-mail", cpf: "CPF", telefone: "Telefone", senha: "Senha",
   aceite_termos: "Termos", login: "E-mail ou CPF", senha_atual: "Senha atual", nova_senha: "Nova senha",
   cep: "CEP", logradouro: "Logradouro", numero: "Número", complemento: "Complemento",

@@ -9,7 +9,7 @@
 <body>
   <header>
     <a href="/">Sistema de Vendas</a>
-    <nav><button id="sair" class="secundario" type="button">Sair</button></nav>
+    <nav><a id="link-painel" href="/admin/produtos.html" hidden>Painel do gerente</a><button id="sair" class="secundario" type="button" style="margin-left:16px">Sair</button></nav>
   </header>
   <main>
     <div id="mensagem" class="mensagem" role="alert"></div>
@@ -89,6 +89,7 @@
       document.getElementById("email").value = usuario.email;
       document.getElementById("cpf").value = usuario.cpf || "";
       document.getElementById("perfil-acesso").textContent = usuario.perfil;
+      document.getElementById("link-painel").hidden = usuario.perfil !== "gerente";
 
       const lista = document.getElementById("enderecos");
       lista.replaceChildren();
