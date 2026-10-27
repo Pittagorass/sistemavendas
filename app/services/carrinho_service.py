@@ -20,7 +20,7 @@ from app.models.usuario import Endereco
 from app.repositories import carrinho_repository as repo
 from app.repositories import produto_repository
 from app.repositories import usuario_repository
-from app.services import frete_service
+from app.services import frete_service, pedido_status
 
 
 def _agora() -> datetime:
@@ -35,12 +35,15 @@ def liberar_reservas_expiradas(db: Session) -> int:
 
     Chamada no início das operações de carrinho e catálogo (liberação "preguiçosa"), pois o
     Vercel Cron do plano gratuito roda só uma vez por dia; o cron é apenas uma limpeza extra.
+    Pedidos não pagos no prazo são cancelados primeiro (registrando o histórico).
     """
-    expiradas = repo.reservas_expiradas(db, _agora())
+    agora = _agora()
+    pedidos_expirados = pedido_status.expirar_pedidos(db, agora)
+    expiradas = repo.reservas_expiradas(db, agora)
     for reserva in expiradas:
         repo.devolver_reservado(db, reserva.produto_id, reserva.quantidade)
         reserva.situacao = RESERVA_EXPIRADA
-    if expiradas:
+    if expiradas or pedidos_expirados:
         db.flush()
         db.expire_all()
     return len(expiradas)

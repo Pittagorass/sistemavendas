@@ -99,7 +99,7 @@ function mostrarReserva() {
     if (restante === 0) {
       clearInterval(temporizadorReserva);
       caixaReserva.className = "mensagem erro";
-      caixaReserva.textContent = "A reserva expirou. Clique em Finalizar compra para reservar de novo.";
+      caixaReserva.textContent = "A reserva expirou. Clique em Ir para o pagamento para reservar de novo.";
       botaoCancelar.hidden = true;
       return;
     }
@@ -107,8 +107,7 @@ function mostrarReserva() {
     const segundos = String(restante % 60).padStart(2, "0");
     caixaReserva.className = "mensagem sucesso";
     caixaReserva.textContent =
-      `Itens reservados para você por ${minutos}:${segundos}. ` +
-      "O pagamento será habilitado na próxima versão do sistema.";
+      `Itens reservados para você por ${minutos}:${segundos}.`;
   };
   atualizar();
   temporizadorReserva = setInterval(atualizar, 1000);
@@ -132,17 +131,25 @@ function renderizar() {
   const avisos = document.getElementById("avisos");
   avisos.replaceChildren(...carrinho.avisos.filter((a) => !a.startsWith("Seu carrinho")).map((a) => elemento("li", "", a)));
   botaoFinalizar.disabled = !carrinho.pode_finalizar;
-  botaoFinalizar.textContent = carrinho.reserva_expira_em ? "Renovar reserva" : "Finalizar compra";
+  botaoFinalizar.textContent = "Ir para o pagamento";
   mostrarReserva();
 }
 
 seletorEndereco.addEventListener("change", recarregar);
 
+// RF-F01 / RF-PAG01: cria o pedido (reservando o estoque) e leva ao pagamento no Mercado Pago.
 botaoFinalizar.addEventListener("click", async () => {
   botaoFinalizar.disabled = true;
-  await executar(() =>
-    Api.requisitar("/api/carrinho/checkout", { metodo: "POST", corpo: { endereco_id: seletorEndereco.value } }),
-  );
+  botaoFinalizar.textContent = "Gerando pedido...";
+  limparMensagem(mensagem);
+  try {
+    const pedido = await Api.requisitar("/api/pedidos", { metodo: "POST", corpo: { endereco_id: seletorEndereco.value } });
+    window.location.href = pedido.url_pagamento || `/pedido.html?id=${pedido.id}`;
+  } catch (erro) {
+    if (erro.status === 401) return irParaLogin();
+    mostrarMensagem(mensagem, "erro", erro.message, erro.campos);
+    await recarregar();
+  }
 });
 
 botaoCancelar.addEventListener("click", () => executar(() => Api.requisitar("/api/carrinho/checkout", { metodo: "DELETE" })));

@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     # Segredo que a Vercel envia no header Authorization ao chamar os Cron Jobs.
     cron_secret: str | None = None
 
+    # Mercado Pago (RF-PAG01/02). Use SOMENTE credenciais de teste (RNF-PAG01).
+    mercadopago_access_token: str | None = None
+    # Assinatura secreta do webhook (Suas integrações > Webhooks), usada para validar x-signature.
+    mercadopago_webhook_secret: str | None = None
+    # Endereço público do site, usado nas URLs de retorno e de notificação do Mercado Pago.
+    url_publica: str = "https://sistemavendas-sigma.vercel.app"
+
     # A Vercel define VERCEL=1 nas funções serverless.
     vercel: str | None = None
 

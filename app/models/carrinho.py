@@ -75,3 +75,7 @@ class ReservaEstoque(ModeloBase):
     quantidade: Mapped[int] = mapped_column(Integer)
     expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     situacao: Mapped[str] = mapped_column(String(10), default=RESERVA_ATIVA, server_default=RESERVA_ATIVA)
+    # Preenchido quando a reserva passa a garantir um pedido aguardando pagamento (Etapa 5).
+    pedido_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pedidos.id", ondelete="SET NULL"), index=True
+    )

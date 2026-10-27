@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pedido – Lulora Tech</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Lulora Tech</a>
+    <nav id="menu"></nav>
+  </header>
+  <main class="largo">
+    <div id="mensagem" class="mensagem" role="alert"></div>
+    <div class="carrinho" id="conteudo" hidden>
+      <section class="cartao">
+        <h1 id="titulo">Pedido</h1>
+        <p><span id="status" class="selo"></span> <span id="criado" class="dica"></span></p>
+        <div id="prazo" class="mensagem" hidden></div>
+        <div class="tabela-rolagem">
+          <table>
+            <thead><tr><th>Produto</th><th class="numero">Qtd.</th><th class="numero">Preço</th><th class="numero">Subtotal</th></tr></thead>
+            <tbody id="itens"></tbody>
+          </table>
+        </div>
+        <h2 style="margin-top:20px">Acompanhamento</h2>
+        <ul id="historico" class="linha-do-tempo"></ul>
+      </section>
+
+      <aside class="cartao">
+        <h2>Resumo</h2>
+        <dl class="totais">
+          <dt>Subtotal</dt><dd id="subtotal"></dd>
+          <dt>Frete</dt><dd id="frete"></dd>
+          <dt class="total">Total</dt><dd class="total" id="total"></dd>
+        </dl>
+        <p class="dica" id="entrega"></p>
+        <div class="acoes">
+          <a id="pagar" class="botao" hidden>Pagar com Mercado Pago</a>
+          <button id="cancelar" type="button" class="secundario" hidden>Cancelar pedido</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const mensagem = document.getElementById("mensagem");
+    const parametros = new URLSearchParams(location.search);
+    const pedidoId = parametros.get("id") || parametros.get("external_reference");
+    let pedido = null;
+    let relogio = null;
+    let consultas = 0;
+
+    function td(texto, classe) {
+      const c = document.createElement("td");
+      if (classe) c.className = classe;
+      c.textContent = texto;
+      return c;
+    }
+
+    function exibir(p) {
+      pedido = p;
+      document.getElementById("conteudo").hidden = false;
+      document.getElementById("titulo").textContent = `Pedido nº ${p.numero}`;
+      const status = document.getElementById("status");
+      status.textContent = NOMES_STATUS[p.status] || p.status;
+      status.className = p.status === "cancelado" ? "selo inativo" : "selo";
+      document.getElementById("criado").textContent = `feito em ${formatarData(p.criado_em)}`;
+
+      document.getElementById("itens").replaceChildren(
+        ...p.itens.map((i) => {
+          const linha = document.createElement("tr");
+          linha.append(td(i.nome), td(i.quantidade, "numero"), td(formatarPreco(i.preco_unitario), "numero"), td(formatarPreco(i.subtotal), "numero"));
+          return linha;
+        }),
+      );
+      document.getElementById("historico").replaceChildren(
+        ...[...p.historico].reverse().map((h) => {
+          const item = document.createElement("li");
+          const titulo = document.createElement("strong");
+          titulo.textContent = NOMES_STATUS[h.status_novo] || h.status_novo;
+          const quando = document.createElement("span");
+          quando.className = "dica";
+          quando.textContent = ` — ${formatarData(h.criado_em)}`;
+          item.append(titulo, quando);
+          if (h.observacao) {
+            const obs = document.createElement("div");
+            obs.className = "dica";
+            obs.textContent = h.observacao;
+            item.appendChild(obs);
+          }
+          return item;
+        }),
+      );
+
+      document.getElementById("subtotal").textContent = formatarPreco(p.subtotal);
+      document.getElementById("frete").textContent =
+        Number(p.frete_valor) === 0 ? `Grátis (${p.frete_prazo_dias} dia(s) úteis)` : `${formatarPreco(p.frete_valor)} (${p.frete_prazo_dias} dia(s) úteis)`;
+      document.getElementById("total").textContent = formatarPreco(p.total);
+      const complemento = p.entrega_complemento ? `, ${p.entrega_complemento}` : "";
+      document.getElementById("entrega").textContent =
+        `Entrega: ${p.entrega_logradouro}, ${p.entrega_numero}${complemento} – ${p.entrega_bairro}, ${p.entrega_cidade}/${p.entrega_uf} – CEP ${p.entrega_cep}`;
+
+      const aguardando = p.status === "aguardando_pagamento";
+      const pagar = document.getElementById("pagar");
+      pagar.hidden = !aguardando || !p.url_pagamento;
+      if (p.url_pagamento) pagar.href = p.url_pagamento;
+      document.getElementById("cancelar").hidden = !aguardando;
+      mostrarPrazo();
+    }
+
+    function mostrarPrazo() {
+      clearInterval(relogio);
+      const caixa = document.getElementById("prazo");
+      caixa.hidden = pedido.status !== "aguardando_pagamento";
+      if (caixa.hidden) return;
+      const expira = new Date(pedido.expira_em);
+      const atualizar = () => {
+        const restante = Math.max(0, Math.round((expira - Date.now()) / 1000));
+        if (restante === 0) {
+          clearInterval(relogio);
+          caixa.className = "mensagem erro";
+          caixa.textContent = "O prazo para pagamento terminou e os itens voltaram ao estoque.";
+          setTimeout(carregar, 2000);
+          return;
+        }
+        const minutos = String(Math.floor(restante / 60)).padStart(2, "0");
+        const segundos = String(restante % 60).padStart(2, "0");
+        caixa.className = "mensagem sucesso";
+        caixa.textContent = `Seus itens estão reservados. Pague em até ${minutos}:${segundos} para garantir a compra.`;
+      };
+      atualizar();
+      relogio = setInterval(atualizar, 1000);
+    }
+
+    async function carregar() {
+      try {
+        exibir(await Api.requisitar(`/api/pedidos/${pedidoId}`));
+        // Enquanto aguarda pagamento, consulta de novo (a confirmação chega pelo webhook).
+        if (pedido.status === "aguardando_pagamento" && consultas++ < 60) setTimeout(carregar, 5000);
+      } catch (erro) {
+        if (erro.status === 401) return (window.location.href = "/login.html");
+        mostrarMensagem(mensagem, "erro", erro.message);
+      }
+    }
+
+    document.getElementById("cancelar").addEventListener("click", async () => {
+      if (!confirm("Cancelar este pedido? Os itens voltarão ao estoque.")) return;
+      try {
+        exibir(await Api.requisitar(`/api/pedidos/${pedidoId}/cancelar`, { metodo: "POST" }));
+        mostrarMensagem(mensagem, "sucesso", "Pedido cancelado.");
+      } catch (erro) {
+        mostrarMensagem(mensagem, "erro", erro.message);
+      }
+    });
+
+    (async () => {
+      if (!(await montarMenu(document.getElementById("menu")))) return (window.location.href = "/login.html");
+      if (!pedidoId) return mostrarMensagem(mensagem, "erro", "Pedido não informado.");
+      // Retorno do Mercado Pago: confirma na hora, sem esperar o webhook.
+      const pagamentoId = parametros.get("payment_id") || parametros.get("collection_id");
+      if (pagamentoId && /^\d+$/.test(pagamentoId)) {
+        try {
+          await Api.requisitar(
+            `/api/pedidos/${pedidoId}/verificar-pagamento?pagamento_id=${encodeURIComponent(pagamentoId)}`,
+            { metodo: "POST" },
+          );
+        } catch {
+          // O webhook ainda confirmará o pagamento; a página continua consultando.
+        }
+      }
+      await carregar();
+      if (pedido?.status === "pago") mostrarMensagem(mensagem, "sucesso", "Pagamento aprovado! Obrigado pela compra.");
+    })();
+  </script>
+</body>
+</html>

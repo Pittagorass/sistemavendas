@@ -6,4 +6,5 @@ alembic==1.14.0
 bcrypt==4.2.1
 PyJWT==2.10.1
 email-validator==2.2.0
+httpx==0.28.1
 vercel-blob==0.5.0

@@ -134,7 +134,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 | 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | **Concluída** (2026-10-27): RF/RNF-CAD01–06 e RF/RNF-SEC01–03 implementados, 50 testes passando, publicada na Vercel com cadastro e login validados em produção |
 | 3 | Módulo 4: produtos, estoque e painel do gerente | **Concluída** (2026-10-27): RF-PROD01–03 e RNF-PROD01 implementados, 74 testes passando, publicada e validada pelo gerente em produção (cadastro, estoque, histórico e upload de imagens no Blob store público `imagens-produtos`) |
 | 4 | Módulo 3: carrinho, frete e reserva | **Concluída** (2026-10-27): RF-C01–C04 e RNF-C01–C03 implementados, 95 testes passando, publicada com `CRON_SECRET` configurado e tabela de frete cadastrada (MG, MT, SP; grátis acima de R$ 400) |
-| 5 | Módulo 5 e RF-F01/RF-F04: checkout, pagamento e pedido | Pendente |
+| 5 | Módulo 5 e RF-F01/RF-F04: checkout, pagamento e pedido | **Concluída localmente** (2026-10-27): pedido, Mercado Pago (Checkout Pro + webhook), baixa de estoque, expiração e ciclo de status implementados e testados com gateway falso. Pendente: publicar, configurar as credenciais de TESTE do Mercado Pago na Vercel e fazer uma compra de teste |
 | 6 | Módulo 6: NF-e em homologação e envio de documentos | Pendente |
 
 > Atualize esta tabela ao concluir cada etapa.
@@ -165,8 +165,12 @@ app/integrations/armazenamento.py  Imagens: Vercel Blob (store público) ou past
                           Rotas recebem via Depends(obter_armazenamento); testes substituem por um falso.
 migrations/               Alembic (versions/ contém as migrações)
 public/                   Front-end estático (index = catálogo, cadastro, login, conta, carrinho,
-                          admin/produtos.html, admin/frete.html + css/, js/api.js, js/admin-produtos.js,
-                          js/carrinho.js), servido pelo CDN da Vercel (não usar app.mount em app/main.py)
+                          pedidos, pedido, admin/pedidos.html, admin/produtos.html, admin/frete.html
+                          + css/, js/api.js, js/admin-produtos.js, js/carrinho.js), servido pelo CDN
+                          da Vercel (não usar app.mount em app/main.py)
+app/integrations/pagamento.py  Gateway Mercado Pago (Checkout Pro): criar cobrança, consultar pagamento,
+                          validar x-signature. Rotas recebem via Depends(obter_gateway); testes usam um falso.
+app/services/pedido_status.py  Transições de status, cancelamento e expiração de pedidos.
 tests/                    pytest (conftest.py: fixture db_transacional desfaz tudo ao final de cada teste)
 .github/workflows/ci.yml  CI: PostgreSQL 16 + alembic upgrade head + pytest
 ```
@@ -185,8 +189,12 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
   `PUT|DELETE /api/carrinho/itens/{produto_id}`, `POST|DELETE /api/carrinho/checkout`
 - Frete (gerente): `GET|PUT /api/admin/frete`
 - Cron: `GET /api/cron/liberar-reservas` (header `Authorization: Bearer <CRON_SECRET>`)
+- Pedidos (cliente): `POST|GET /api/pedidos`, `GET /api/pedidos/{id}`, `POST /api/pedidos/{id}/cancelar`,
+  `POST /api/pedidos/{id}/verificar-pagamento?pagamento_id=`
+- Pedidos (gerente): `GET /api/admin/pedidos?status=&numero=`, `GET /api/admin/pedidos/{id}`, `POST /api/admin/pedidos/{id}/status`
+- Webhook: `POST /api/pagamentos/mercadopago/webhook?data.id=&type=payment` (headers `x-signature`, `x-request-id`)
 
-**Tabelas existentes:** `usuarios`, `enderecos`, `refresh_tokens`, `tokens_revogados`, `tentativas_login`, `produtos`, `movimentacoes_estoque`, `carrinhos`, `itens_carrinho`, `reservas_estoque`, `tabela_frete`, `configuracao_frete`.
+**Tabelas existentes:** `usuarios`, `enderecos`, `refresh_tokens`, `tokens_revogados`, `tentativas_login`, `produtos`, `movimentacoes_estoque`, `carrinhos`, `itens_carrinho`, `reservas_estoque`, `tabela_frete`, `configuracao_frete`, `pedidos`, `itens_pedido`, `historico_pedidos`, `pagamentos`.
 
 **Decisões da Etapa 3:**
 - Estoque disponível = `estoque_fisico - estoque_reservado`. `estoque_reservado` já existe (sempre 0 até a Etapa 4) e uma constraint impede reservado > físico.
@@ -204,6 +212,15 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
 - Situações da reserva: `ativa`, `expirada`, `cancelada`, `convertida` (esta última será usada na Etapa 5, quando o pagamento confirmar e a reserva virar baixa de estoque).
 - Frete: valor fixo por UF + frete grátis acima de um subtotal, atrás da interface `CalculadoraFrete` (`app/services/frete_service.py`). UF sem faixa = "ainda não entregamos", bloqueia a finalização.
 
+**Decisões da Etapa 5:**
+- "Ir para o pagamento" (`POST /api/pedidos`) faz tudo numa transação: reserva o estoque (15 min), cria o pedido com preços, dados fiscais, comprador e endereço congelados, vincula as reservas ao pedido (`reservas_estoque.pedido_id`), esvazia o carrinho e cria a preferência no Mercado Pago. Se o gateway falhar, nada é gravado.
+- `pedidos.numero` é `GENERATED ALWAYS AS IDENTITY` (começa em 1000): sequencial e imutável; lacunas por rollback são aceitas.
+- Um novo pedido cancela os pedidos ainda não pagos do mesmo cliente. O cliente pode cancelar um pedido aguardando pagamento.
+- A preferência expira junto com a reserva. Pedido não pago no prazo é cancelado pela liberação sob demanda (mesmo ponto que libera reservas) e pelo cron.
+- Confirmação: webhook com `x-signature` validado (HMAC-SHA256 de `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`), e o status vem SEMPRE da consulta `GET /v1/payments/{id}`. A página de retorno (`/pedido.html?id=...&payment_id=...`) também consulta, para não depender só do webhook. Processamento idempotente (pagamento único por `id_externo`).
+- Pagamento aprovado: na mesma transação, reservas viram baixa (`estoque_fisico` e `estoque_reservado` diminuem), movimentação `venda` é registrada e o pedido vira `pago`. Valor pago menor que o total não confirma. Aprovação após o prazo: baixa se houver saldo livre; senão o pedido vira `pago` com alerta no histórico para repor estoque ou estornar.
+- Gerente: `aguardando_pagamento→cancelado`, `pago→faturado` (manual até a Etapa 6 automatizar com a NF-e), `faturado→enviado`, `enviado→entregue`. Cancelar pedido pago exige estorno (fora do escopo desta etapa).
+
 **Decisões da Etapa 2:**
 - Access token no corpo da resposta e mantido só em memória no front-end; refresh token em cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`, rotacionado a cada `/refresh`.
 - E-mail e CPF são únicos apenas entre contas ativas (índices parciais `WHERE excluido_em IS NULL`).
@@ -211,7 +228,7 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
 - O primeiro gerente é promovido via `python -m app.cli promover-gerente <email>` após se cadastrar pelo site.
 - Testes nunca deixam dados no banco (transação desfeita), pois o banco local é o mesmo de produção.
 
-**Variáveis de ambiente:** `AMBIENTE`, `DATABASE_URL` (ou `POSTGRES_URL`), `JWT_SECRET` (obrigatória na Vercel: no mínimo 32 caracteres; sem ela o login falha). `BLOB_STORE_ID` (criada pela Vercel ao conectar um Blob store **público** ao projeto; fora da Vercel use `BLOB_READ_WRITE_TOKEN`; sem nenhuma das duas, o upload de imagens responde 503 na Vercel e grava em `public/uploads` localmente). `CRON_SECRET` (valor aleatório de 16+ caracteres; a Vercel o envia ao chamar os Cron Jobs). Opcionais: `BCRYPT_ROUNDS`, `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`, `RESERVA_MINUTOS`. Novas variáveis devem ser adicionadas em `app/core/config.py` **e** em `.env.example`.
+**Variáveis de ambiente:** `AMBIENTE`, `DATABASE_URL` (ou `POSTGRES_URL`), `JWT_SECRET` (obrigatória na Vercel: no mínimo 32 caracteres; sem ela o login falha). `BLOB_STORE_ID` (criada pela Vercel ao conectar um Blob store **público** ao projeto; fora da Vercel use `BLOB_READ_WRITE_TOKEN`; sem nenhuma das duas, o upload de imagens responde 503 na Vercel e grava em `public/uploads` localmente). `CRON_SECRET` (valor aleatório de 16+ caracteres; a Vercel o envia ao chamar os Cron Jobs). `MERCADOPAGO_ACCESS_TOKEN` (credencial de TESTE; sem ela, criar pedido responde 503), `MERCADOPAGO_WEBHOOK_SECRET` (assinatura secreta do webhook; sem ela, todo webhook é recusado com 401), `URL_PUBLICA` (padrão: https://sistemavendas-sigma.vercel.app). Opcionais: `BCRYPT_ROUNDS`, `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`, `RESERVA_MINUTOS`. Novas variáveis devem ser adicionadas em `app/core/config.py` **e** em `.env.example`.
 
 **Dependências fixadas:** fastapi 0.115.6, pydantic-settings 2.6.1, sqlalchemy 2.0.36, psycopg[binary] 3.2.3, alembic 1.14.0, bcrypt 4.2.1, PyJWT 2.10.1, email-validator 2.2.0, vercel-blob 0.5.0 (produção, em `requirements.txt`); uvicorn, pytest, httpx e python-dotenv (desenvolvimento, em `requirements-dev.txt`).
 

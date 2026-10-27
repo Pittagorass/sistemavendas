@@ -34,11 +34,25 @@ def buscar_item(carrinho: Carrinho, produto_id: uuid.UUID) -> ItemCarrinho | Non
 
 
 def reservas_ativas_do_usuario(db: Session, usuario_id: uuid.UUID) -> list[ReservaEstoque]:
+    """Reservas do checkout em andamento no carrinho. As que já garantem um pedido
+    aguardando pagamento (pedido_id preenchido) pertencem ao pedido, não ao carrinho."""
     return list(
         db.scalars(
             select(ReservaEstoque).where(
-                ReservaEstoque.usuario_id == usuario_id, ReservaEstoque.situacao == RESERVA_ATIVA
+                ReservaEstoque.usuario_id == usuario_id,
+                ReservaEstoque.situacao == RESERVA_ATIVA,
+                ReservaEstoque.pedido_id.is_(None),
             )
+        )
+    )
+
+
+def reservas_ativas_do_pedido(db: Session, pedido_id: uuid.UUID) -> list[ReservaEstoque]:
+    return list(
+        db.scalars(
+            select(ReservaEstoque)
+            .where(ReservaEstoque.pedido_id == pedido_id, ReservaEstoque.situacao == RESERVA_ATIVA)
+            .order_by(ReservaEstoque.produto_id)
         )
     )
 

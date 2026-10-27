@@ -39,6 +39,21 @@ const Api = {
   },
 };
 
+const NOMES_STATUS = {
+  aguardando_pagamento: "Aguardando pagamento",
+  pago: "Pago",
+  faturado: "Faturado",
+  enviado: "Enviado",
+  entregue: "Entregue",
+  cancelado: "Cancelado",
+};
+
+const formatoDataHora = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
+
+function formatarData(valor) {
+  return valor ? formatoDataHora.format(new Date(valor)) : "";
+}
+
 const formatoMoeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 function formatarPreco(valor) {
@@ -77,8 +92,12 @@ async function montarMenu(nav) {
   if (!perfil) {
     nav.append(link("/login.html", "Entrar"), link("/cadastro.html", "Criar conta"));
   } else {
-    if (perfil === "gerente") nav.append(link("/admin/produtos.html", "Painel"));
-    nav.append(link("/conta.html", "Minha conta"), link("/carrinho.html", "Carrinho", "link-carrinho"));
+    if (perfil === "gerente") nav.append(link("/admin/pedidos.html", "Painel"));
+    nav.append(
+      link("/pedidos.html", "Meus pedidos"),
+      link("/conta.html", "Minha conta"),
+      link("/carrinho.html", "Carrinho", "link-carrinho"),
+    );
   }
   return perfil;
 }

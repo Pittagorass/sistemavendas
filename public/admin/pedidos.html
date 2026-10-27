@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pedidos – Painel do gerente – Lulora Tech</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Lulora Tech</a>
+    <nav><a href="/admin/produtos.html">Produtos</a><a href="/admin/frete.html">Frete</a><a href="/conta.html">Minha conta</a></nav>
+  </header>
+  <main class="largo">
+    <div id="mensagem" class="mensagem" role="alert"></div>
+    <section class="cartao" id="painel" hidden>
+      <h1>Pedidos</h1>
+      <div class="barra">
+        <select id="filtro-status" aria-label="Filtrar por situação" style="max-width:240px">
+          <option value="">Todas as situações</option>
+          <option value="aguardando_pagamento">Aguardando pagamento</option>
+          <option value="pago">Pago</option>
+          <option value="faturado">Faturado</option>
+          <option value="enviado">Enviado</option>
+          <option value="entregue">Entregue</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+        <input type="search" id="filtro-numero" inputmode="numeric" placeholder="Nº do pedido" aria-label="Número do pedido" style="max-width:180px">
+      </div>
+      <div class="tabela-rolagem">
+        <table>
+          <thead><tr><th>Nº</th><th>Data</th><th>Itens</th><th class="numero">Total</th><th>Situação</th><th></th></tr></thead>
+          <tbody id="lista"></tbody>
+        </table>
+      </div>
+      <p id="resumo" class="dica"></p>
+    </section>
+  </main>
+
+  <dialog id="detalhe">
+    <h2 id="detalhe-titulo"></h2>
+    <div id="mensagem-detalhe" class="mensagem" role="alert"></div>
+    <p><span id="detalhe-status" class="selo"></span></p>
+    <div class="grade">
+      <div><strong>Comprador</strong><p class="dica" id="detalhe-comprador"></p></div>
+      <div><strong>Entrega</strong><p class="dica" id="detalhe-entrega"></p></div>
+    </div>
+    <div class="tabela-rolagem">
+      <table>
+        <thead><tr><th>Produto</th><th class="numero">Qtd.</th><th class="numero">Preço</th><th class="numero">Subtotal</th></tr></thead>
+        <tbody id="detalhe-itens"></tbody>
+      </table>
+    </div>
+    <p class="dica" id="detalhe-totais"></p>
+    <h3>Pagamentos</h3>
+    <ul id="detalhe-pagamentos" class="dica"></ul>
+    <h3>Histórico</h3>
+    <ul id="detalhe-historico" class="linha-do-tempo"></ul>
+    <form id="form-status" novalidate>
+      <fieldset>
+        <legend>Atualizar situação</legend>
+        <div class="grade">
+          <div><label for="novo-status">Nova situação</label><select id="novo-status"></select></div>
+          <div><label for="observacao">Observação (opcional)</label><input id="observacao" maxlength="500" placeholder="Ex.: código de rastreio"></div>
+        </div>
+        <div class="acoes"><button type="submit">Atualizar</button></div>
+      </fieldset>
+    </form>
+    <div class="acoes"><button type="button" class="secundario" id="fechar">Fechar</button></div>
+  </dialog>
+
+  <script src="/js/api.js"></script>
+  <script>
+    // Próximas situações permitidas (espelha TRANSICOES_GERENTE do back-end).
+    const PROXIMOS = {
+      aguardando_pagamento: ["cancelado"],
+      pago: ["faturado"],
+      faturado: ["enviado"],
+      enviado: ["entregue"],
+    };
+    const ORIGENS = { cliente: "cliente", gerente: "gerente", pagamento: "Mercado Pago", sistema: "sistema" };
+    const mensagem = document.getElementById("mensagem");
+    const dialogo = document.getElementById("detalhe");
+    let pedidoAtual = null;
+
+    function td(conteudo, classe) {
+      const c = document.createElement("td");
+      if (classe) c.className = classe;
+      c.append(conteudo);
+      return c;
+    }
+
+    function selo(status) {
+      const s = document.createElement("span");
+      s.className = status === "cancelado" ? "selo inativo" : "selo";
+      s.textContent = NOMES_STATUS[status] || status;
+      return s;
+    }
+
+    async function carregar() {
+      const parametros = new URLSearchParams({ limite: "100" });
+      const status = document.getElementById("filtro-status").value;
+      const numero = document.getElementById("filtro-numero").value.trim();
+      if (status) parametros.set("status", status);
+      if (/^\d+$/.test(numero)) parametros.set("numero", numero);
+      const pagina = await Api.requisitar(`/api/admin/pedidos?${parametros}`);
+      document.getElementById("lista").replaceChildren(
+        ...pagina.itens.map((p) => {
+          const linha = document.createElement("tr");
+          const ver = document.createElement("button");
+          ver.type = "button";
+          ver.className = "secundario";
+          ver.textContent = "Detalhes";
+          ver.addEventListener("click", () => abrir(p.id));
+          const itens = p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(", ");
+          linha.append(td(String(p.numero)), td(formatarData(p.criado_em)), td(itens), td(formatarPreco(p.total), "numero"), td(selo(p.status)), td(ver));
+          return linha;
+        }),
+      );
+      document.getElementById("resumo").textContent = `${pagina.total} pedido(s).`;
+    }
+
+    function preencher(p) {
+      pedidoAtual = p;
+      document.getElementById("detalhe-titulo").textContent = `Pedido nº ${p.numero} — ${formatarData(p.criado_em)}`;
+      document.getElementById("detalhe-status").replaceWith(Object.assign(selo(p.status), { id: "detalhe-status" }));
+      document.getElementById("detalhe-comprador").textContent =
+        `${p.comprador_nome} · CPF ${p.comprador_cpf} · ${p.comprador_email} · ${p.comprador_telefone}`;
+      const complemento = p.entrega_complemento ? `, ${p.entrega_complemento}` : "";
+      document.getElementById("detalhe-entrega").textContent =
+        `${p.entrega_logradouro}, ${p.entrega_numero}${complemento} – ${p.entrega_bairro}, ${p.entrega_cidade}/${p.entrega_uf} – CEP ${p.entrega_cep}`;
+      document.getElementById("detalhe-itens").replaceChildren(
+        ...p.itens.map((i) => {
+          const linha = document.createElement("tr");
+          linha.append(td(i.nome), td(String(i.quantidade), "numero"), td(formatarPreco(i.preco_unitario), "numero"), td(formatarPreco(i.subtotal), "numero"));
+          return linha;
+        }),
+      );
+      document.getElementById("detalhe-totais").textContent =
+        `Subtotal ${formatarPreco(p.subtotal)} · Frete ${formatarPreco(p.frete_valor)} (${p.frete_prazo_dias} dia(s)) · Total ${formatarPreco(p.total)}`;
+      const pagamentos = document.getElementById("detalhe-pagamentos");
+      pagamentos.replaceChildren(
+        ...(p.pagamentos.length
+          ? p.pagamentos.map((pg) => Object.assign(document.createElement("li"), {
+              textContent: `Mercado Pago nº ${pg.id_externo}: ${pg.status}${pg.status_detalhe ? ` (${pg.status_detalhe})` : ""} · ${pg.metodo || "–"} · ${formatarPreco(pg.valor)}`,
+            }))
+          : [Object.assign(document.createElement("li"), { textContent: "Nenhum pagamento registrado." })]),
+      );
+      document.getElementById("detalhe-historico").replaceChildren(
+        ...[...p.historico].reverse().map((h) => {
+          const item = document.createElement("li");
+          const titulo = document.createElement("strong");
+          titulo.textContent = NOMES_STATUS[h.status_novo] || h.status_novo;
+          const quando = document.createElement("span");
+          quando.className = "dica";
+          quando.textContent = ` — ${formatarData(h.criado_em)} · por ${ORIGENS[h.origem] || h.origem}`;
+          item.append(titulo, quando);
+          if (h.observacao) item.appendChild(Object.assign(document.createElement("div"), { className: "dica", textContent: h.observacao }));
+          return item;
+        }),
+      );
+      const proximos = PROXIMOS[p.status] || [];
+      const form = document.getElementById("form-status");
+      form.hidden = proximos.length === 0;
+      document.getElementById("novo-status").replaceChildren(
+        ...proximos.map((s) => Object.assign(document.createElement("option"), { value: s, textContent: NOMES_STATUS[s] })),
+      );
+      document.getElementById("observacao").value = "";
+    }
+
+    async function abrir(id) {
+      limparMensagem(document.getElementById("mensagem-detalhe"));
+      try {
+        preencher(await Api.requisitar(`/api/admin/pedidos/${id}`));
+        dialogo.showModal();
+      } catch (erro) {
+        mostrarMensagem(mensagem, "erro", erro.message);
+      }
+    }
+
+    document.getElementById("form-status").addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      const novo = document.getElementById("novo-status").value;
+      if (novo === "cancelado" && !confirm("Cancelar o pedido? Os itens voltarão ao estoque.")) return;
+      try {
+        preencher(await Api.requisitar(`/api/admin/pedidos/${pedidoAtual.id}/status`, {
+          metodo: "POST",
+          corpo: { status: novo, observacao: document.getElementById("observacao").value || null },
+        }));
+        mostrarMensagem(document.getElementById("mensagem-detalhe"), "sucesso", "Situação atualizada.");
+        carregar();
+      } catch (erro) {
+        mostrarMensagem(document.getElementById("mensagem-detalhe"), "erro", erro.message);
+      }
+    });
+
+    document.getElementById("fechar").addEventListener("click", () => dialogo.close());
+    document.getElementById("filtro-status").addEventListener("change", () => carregar().catch((e) => mostrarMensagem(mensagem, "erro", e.message)));
+    let espera;
+    document.getElementById("filtro-numero").addEventListener("input", () => {
+      clearTimeout(espera);
+      espera = setTimeout(() => carregar().catch((e) => mostrarMensagem(mensagem, "erro", e.message)), 300);
+    });
+
+    (async () => {
+      if (!(await Api.renovarSessao())) return (window.location.href = "/login.html");
+      try {
+        await carregar();
+        document.getElementById("painel").hidden = false;
+      } catch (erro) {
+        if (erro.status === 401) return (window.location.href = "/login.html");
+        mostrarMensagem(mensagem, "erro", erro.status === 403 ? "Esta área é restrita a gerentes." : erro.message);
+      }
+    })();
+  </script>
+</body>
+</html>

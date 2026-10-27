@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meus pedidos – Lulora Tech</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Lulora Tech</a>
+    <nav id="menu"></nav>
+  </header>
+  <main>
+    <div id="mensagem" class="mensagem" role="alert"></div>
+    <section class="cartao">
+      <h1>Meus pedidos</h1>
+      <div class="tabela-rolagem">
+        <table>
+          <thead><tr><th>Nº</th><th>Data</th><th>Itens</th><th class="numero">Total</th><th>Situação</th></tr></thead>
+          <tbody id="lista"></tbody>
+        </table>
+      </div>
+      <p id="vazio" class="dica" hidden>Você ainda não fez pedidos. <a href="/">Ver produtos</a></p>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    function td(conteudo, classe) {
+      const c = document.createElement("td");
+      if (classe) c.className = classe;
+      c.append(conteudo);
+      return c;
+    }
+
+    (async () => {
+      if (!(await montarMenu(document.getElementById("menu")))) return (window.location.href = "/login.html");
+      try {
+        const pagina = await Api.requisitar("/api/pedidos?limite=100");
+        document.getElementById("vazio").hidden = pagina.itens.length > 0;
+        document.getElementById("lista").replaceChildren(
+          ...pagina.itens.map((p) => {
+            const linha = document.createElement("tr");
+            const link = document.createElement("a");
+            link.href = `/pedido.html?id=${p.id}`;
+            link.textContent = p.numero;
+            const selo = document.createElement("span");
+            selo.className = p.status === "cancelado" ? "selo inativo" : "selo";
+            selo.textContent = NOMES_STATUS[p.status] || p.status;
+            const itens = p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(", ");
+            linha.append(td(link), td(formatarData(p.criado_em)), td(itens), td(formatarPreco(p.total), "numero"), td(selo));
+            return linha;
+          }),
+        );
+      } catch (erro) {
+        if (erro.status === 401) return (window.location.href = "/login.html");
+        mostrarMensagem(document.getElementById("mensagem"), "erro", erro.message);
+      }
+    })();
+  </script>
+</body>
+</html>

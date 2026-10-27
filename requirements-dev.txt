@@ -1,5 +1,4 @@
 -r requirements.txt
 uvicorn==0.32.1
 pytest==8.3.4
-httpx==0.28.1
 python-dotenv==1.2.4

@@ -3,11 +3,11 @@
 from fastapi import FastAPI
 
 from app.core.errors import registrar_handlers
-from app.routes import autenticacao, carrinho, health, produtos, usuarios
+from app.routes import autenticacao, carrinho, health, pedidos, produtos, usuarios
 
 
 def criar_app() -> FastAPI:
-    app = FastAPI(title="Lulora Tech - ERP & E-commerce", version="0.4.0")
+    app = FastAPI(title="Lulora Tech - ERP & E-commerce", version="0.5.0")
     registrar_handlers(app)
     app.include_router(health.router)
     app.include_router(autenticacao.router)
@@ -17,6 +17,9 @@ def criar_app() -> FastAPI:
     app.include_router(carrinho.router)
     app.include_router(carrinho.admin_frete)
     app.include_router(carrinho.cron)
+    app.include_router(pedidos.router)
+    app.include_router(pedidos.admin)
+    app.include_router(pedidos.webhook)
     return app
 
 
