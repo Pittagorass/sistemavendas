@@ -129,7 +129,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 | Etapa | Escopo | Status |
 | :--- | :--- | :--- |
 | 1 | Fundação: projeto FastAPI, conexão PostgreSQL, Alembic, CI e deploy na Vercel | **Concluída** (2026-10-26): testes e CI passando; publicada em https://sistemavendas-sigma.vercel.app com conexão ao Neon (sa-east-1) validada |
-| 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | **Concluída localmente** (2026-10-26): RF/RNF-CAD01–06 e RF/RNF-SEC01–03 implementados, 50 testes passando, fluxo validado no navegador. Pendente: publicar e configurar `JWT_SECRET` na Vercel |
+| 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | **Concluída** (2026-10-27): RF/RNF-CAD01–06 e RF/RNF-SEC01–03 implementados, 50 testes passando, publicada na Vercel com cadastro e login validados em produção |
 | 3 | Módulo 4: produtos, estoque e painel do gerente | Pendente |
 | 4 | Módulo 3: carrinho, frete e reserva | Pendente |
 | 5 | Módulo 5 e RF-F01/RF-F04: checkout, pagamento e pedido | Pendente |
