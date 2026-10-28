@@ -46,6 +46,9 @@ class Settings(BaseSettings):
 
     # Mercado Pago (RF-PAG01/02). Use SOMENTE credenciais de teste (RNF-PAG01).
     mercadopago_access_token: str | None = None
+    # Força o checkout de testes (sandbox) mesmo que o token não comece com "TEST-",
+    # como acontece com as credenciais de um usuário vendedor de teste (APP_USR-...).
+    mercadopago_modo_teste: bool | None = None
     # Assinatura secreta do webhook (Suas integrações > Webhooks), usada para validar x-signature.
     mercadopago_webhook_secret: str | None = None
     # Endereço público do site, usado nas URLs de retorno e de notificação do Mercado Pago.

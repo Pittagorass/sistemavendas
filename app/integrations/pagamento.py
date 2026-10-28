@@ -74,9 +74,11 @@ def _data(valor: str | None) -> datetime | None:
 
 
 class MercadoPago:
-    def __init__(self, access_token: str, webhook_secret: str | None):
+    def __init__(self, access_token: str, webhook_secret: str | None, modo_teste: bool | None = None):
         self.access_token = access_token
         self.webhook_secret = webhook_secret
+        # Credenciais de teste do Mercado Pago começam com "TEST-".
+        self.modo_teste = access_token.startswith("TEST-") if modo_teste is None else modo_teste
 
     def _requisitar(self, metodo: str, caminho: str, cabecalhos: dict | None = None, **kwargs) -> httpx.Response:
         try:
@@ -128,7 +130,10 @@ class MercadoPago:
             logger.error("Mercado Pago recusou a preferência: %s %s", resposta.status_code, resposta.text[:500])
             raise ErroNegocio("O Mercado Pago recusou a cobrança. Tente novamente.", "gateway_recusou", 502)
         dados_resposta = resposta.json()
-        return Cobranca(id=dados_resposta["id"], url_pagamento=dados_resposta["init_point"])
+        # Com credenciais de teste (RNF-PAG01), o pagamento precisa acontecer no ambiente de testes
+        # (sandbox_init_point); o init_point abriria o checkout real, com a conta logada no navegador.
+        url = dados_resposta.get("sandbox_init_point") if self.modo_teste else None
+        return Cobranca(id=dados_resposta["id"], url_pagamento=url or dados_resposta["init_point"])
 
     def consultar_pagamento(self, pagamento_id: str) -> InfoPagamento | None:
         resposta = self._requisitar("GET", f"/v1/payments/{pagamento_id}")
@@ -170,4 +175,6 @@ def obter_gateway() -> GatewayPagamento:
         raise ErroNegocio(
             "Pagamentos ainda não configurados. Tente novamente mais tarde.", "pagamento_nao_configurado", 503
         )
-    return MercadoPago(settings.mercadopago_access_token, settings.mercadopago_webhook_secret)
+    return MercadoPago(
+        settings.mercadopago_access_token, settings.mercadopago_webhook_secret, settings.mercadopago_modo_teste
+    )
