@@ -125,6 +125,10 @@ class MercadoPago:
             "date_of_expiration": expira,
             "metadata": {"numero_pedido": dados.numero_pedido},
         }
+        if self.modo_teste:
+            # No ambiente de testes quem paga é a conta compradora de teste logada no checkout;
+            # o e-mail real do cliente faz o Mercado Pago recusar o pagamento ao clicar em "Pagar".
+            del corpo["payer"]
         resposta = self._requisitar("POST", "/checkout/preferences", json=corpo)
         if resposta.status_code >= 400:
             logger.error("Mercado Pago recusou a preferência: %s %s", resposta.status_code, resposta.text[:500])

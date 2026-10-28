@@ -72,3 +72,16 @@ def test_credencial_de_teste_usa_checkout_de_testes(resposta_preferencia, token,
     cobranca = MercadoPago(token, None, modo_teste).criar_cobranca(_dados())
     assert cobranca.id == "pref-1"
     assert cobranca.url_pagamento == url
+
+
+@pytest.mark.parametrize(("modo_teste", "envia_comprador"), [(True, False), (False, True)])
+def test_comprador_so_e_enviado_fora_do_modo_de_teste(monkeypatch, modo_teste, envia_comprador):
+    enviados = []
+
+    def falso(self, metodo, caminho, cabecalhos=None, **kwargs):
+        enviados.append(kwargs["json"])
+        return httpx.Response(201, json={"id": "pref-1", "init_point": "https://mp/real"})
+
+    monkeypatch.setattr(MercadoPago, "_requisitar", falso)
+    MercadoPago("APP_USR-123", None, modo_teste).criar_cobranca(_dados())
+    assert ("payer" in enviados[0]) is envia_comprador
