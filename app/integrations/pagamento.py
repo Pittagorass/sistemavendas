@@ -175,6 +175,14 @@ def obter_gateway() -> GatewayPagamento:
         raise ErroNegocio(
             "Pagamentos ainda não configurados. Tente novamente mais tarde.", "pagamento_nao_configurado", 503
         )
-    return MercadoPago(
+    gateway = MercadoPago(
         settings.mercadopago_access_token, settings.mercadopago_webhook_secret, settings.mercadopago_modo_teste
     )
+    if not gateway.modo_teste and not settings.mercadopago_producao_liberada:
+        logger.error("Credencial do Mercado Pago fora do modo de teste: cobranças bloqueadas.")
+        raise ErroNegocio(
+            "Pagamentos temporariamente indisponíveis (credencial de produção bloqueada).",
+            "producao_bloqueada",
+            503,
+        )
+    return gateway

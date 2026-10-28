@@ -34,6 +34,32 @@ def resposta_preferencia(monkeypatch):
 
 
 @pytest.mark.parametrize(
+    ("token", "modo_teste", "liberada", "bloqueado"),
+    [
+        ("APP_USR-123", None, False, True),
+        ("APP_USR-123", True, False, False),
+        ("TEST-123", None, False, False),
+        ("APP_USR-123", None, True, False),
+    ],
+)
+def test_credencial_de_producao_e_bloqueada(monkeypatch, token, modo_teste, liberada, bloqueado):
+    from app.core.config import get_settings
+    from app.core.errors import ErroNegocio
+    from app.integrations.pagamento import obter_gateway
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "mercadopago_access_token", token)
+    monkeypatch.setattr(settings, "mercadopago_modo_teste", modo_teste)
+    monkeypatch.setattr(settings, "mercadopago_producao_liberada", liberada)
+    if bloqueado:
+        with pytest.raises(ErroNegocio) as erro:
+            obter_gateway()
+        assert erro.value.codigo == "producao_bloqueada"
+    else:
+        assert obter_gateway().access_token == token
+
+
+@pytest.mark.parametrize(
     ("token", "modo_teste", "url"),
     [
         ("TEST-123", None, "https://mp/sandbox"),
