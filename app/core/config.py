@@ -46,8 +46,8 @@ class Settings(BaseSettings):
 
     # Mercado Pago (RF-PAG01/02). Use SOMENTE credenciais de teste (RNF-PAG01).
     mercadopago_access_token: str | None = None
-    # Força o checkout de testes (sandbox) mesmo que o token não comece com "TEST-",
-    # como acontece com as credenciais de um usuário vendedor de teste (APP_USR-...).
+    # Ativa o modo de teste com as credenciais de um usuário vendedor de teste (APP_USR-...), que não
+    # começam com "TEST-". Antes de cada cobrança, o gateway confirma que o vendedor é mesmo de teste.
     mercadopago_modo_teste: bool | None = None
     # Trava de segurança (RNF-PAG01): enquanto for False, o sistema se recusa a criar cobranças
     # que não estejam no modo de teste, para nunca cobrar dinheiro real por engano.

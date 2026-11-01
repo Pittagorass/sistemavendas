@@ -95,6 +95,10 @@ class MercadoPago:
                 "Não foi possível falar com o Mercado Pago. Tente novamente.", "gateway_indisponivel", 502
             ) from exc
 
+    def _vendedor_e_conta_de_teste(self) -> bool:
+        resposta = self._requisitar("GET", "/users/me")
+        return resposta.status_code == 200 and "test_user" in (resposta.json().get("tags") or [])
+
     def criar_cobranca(self, dados: DadosCobranca) -> Cobranca:
         """Cria uma preferência do Checkout Pro que expira junto com a reserva de estoque."""
         expira = dados.expira_em.isoformat(timespec="milliseconds")
@@ -126,17 +130,25 @@ class MercadoPago:
             "metadata": {"numero_pedido": dados.numero_pedido},
         }
         if self.modo_teste:
-            # No ambiente de testes quem paga é a conta compradora de teste logada no checkout;
-            # o e-mail real do cliente faz o Mercado Pago recusar o pagamento ao clicar em "Pagar".
+            # Quem paga no teste é a conta compradora logada no checkout: os dados reais do cliente
+            # não precisam ir para o Mercado Pago.
             del corpo["payer"]
+        token_de_teste = self.access_token.startswith("TEST-")
+        if self.modo_teste and not token_de_teste and not self._vendedor_e_conta_de_teste():
+            logger.error("Modo de teste ativo com credencial que não é de conta de teste: cobrança bloqueada.")
+            raise ErroNegocio(
+                "Pagamentos temporariamente indisponíveis (credencial de produção bloqueada).",
+                "producao_bloqueada",
+                503,
+            )
         resposta = self._requisitar("POST", "/checkout/preferences", json=corpo)
         if resposta.status_code >= 400:
             logger.error("Mercado Pago recusou a preferência: %s %s", resposta.status_code, resposta.text[:500])
             raise ErroNegocio("O Mercado Pago recusou a cobrança. Tente novamente.", "gateway_recusou", 502)
         dados_resposta = resposta.json()
-        # Com credenciais de teste (RNF-PAG01), o pagamento precisa acontecer no ambiente de testes
-        # (sandbox_init_point); o init_point abriria o checkout real, com a conta logada no navegador.
-        url = dados_resposta.get("sandbox_init_point") if self.modo_teste else None
+        # Credenciais de contas de teste (APP_USR-) pagam pelo init_point, com a conta compradora de teste
+        # logada. Esse link é o ambiente real: só é seguro porque o vendedor foi verificado acima.
+        url = dados_resposta.get("sandbox_init_point") if self.modo_teste and token_de_teste else None
         return Cobranca(id=dados_resposta["id"], url_pagamento=url or dados_resposta["init_point"])
 
     def consultar_pagamento(self, pagamento_id: str) -> InfoPagamento | None:

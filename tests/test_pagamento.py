@@ -24,13 +24,23 @@ def _dados() -> DadosCobranca:
 
 @pytest.fixture
 def resposta_preferencia(monkeypatch):
+    return _falsificar_api(monkeypatch, ["test_user"])
+
+
+def _falsificar_api(monkeypatch, tags: list[str]) -> list[dict]:
+    enviados = []
+
     def falso(self, metodo, caminho, cabecalhos=None, **kwargs):
+        if caminho == "/users/me":
+            return httpx.Response(200, json={"id": 1, "tags": tags})
+        enviados.append(kwargs["json"])
         return httpx.Response(
             201,
             json={"id": "pref-1", "init_point": "https://mp/real", "sandbox_init_point": "https://mp/sandbox"},
         )
 
     monkeypatch.setattr(MercadoPago, "_requisitar", falso)
+    return enviados
 
 
 @pytest.mark.parametrize(
@@ -64,7 +74,7 @@ def test_credencial_de_producao_e_bloqueada(monkeypatch, token, modo_teste, libe
     [
         ("TEST-123", None, "https://mp/sandbox"),
         ("APP_USR-123", None, "https://mp/real"),
-        ("APP_USR-123", True, "https://mp/sandbox"),
+        ("APP_USR-123", True, "https://mp/real"),
         ("TEST-123", False, "https://mp/real"),
     ],
 )
@@ -76,12 +86,24 @@ def test_credencial_de_teste_usa_checkout_de_testes(resposta_preferencia, token,
 
 @pytest.mark.parametrize(("modo_teste", "envia_comprador"), [(True, False), (False, True)])
 def test_comprador_so_e_enviado_fora_do_modo_de_teste(monkeypatch, modo_teste, envia_comprador):
-    enviados = []
-
-    def falso(self, metodo, caminho, cabecalhos=None, **kwargs):
-        enviados.append(kwargs["json"])
-        return httpx.Response(201, json={"id": "pref-1", "init_point": "https://mp/real"})
-
-    monkeypatch.setattr(MercadoPago, "_requisitar", falso)
+    enviados = _falsificar_api(monkeypatch, ["test_user"])
     MercadoPago("APP_USR-123", None, modo_teste).criar_cobranca(_dados())
     assert ("payer" in enviados[0]) is envia_comprador
+
+
+def test_modo_de_teste_bloqueia_credencial_de_conta_real(monkeypatch):
+    from app.core.errors import ErroNegocio
+
+    enviados = _falsificar_api(monkeypatch, ["normal"])
+    with pytest.raises(ErroNegocio) as erro:
+        MercadoPago("APP_USR-123", None, True).criar_cobranca(_dados())
+    assert erro.value.codigo == "producao_bloqueada"
+    assert enviados == []
+
+
+def test_modo_de_teste_bloqueia_se_nao_conseguir_verificar_o_vendedor(monkeypatch):
+    from app.core.errors import ErroNegocio
+
+    monkeypatch.setattr(MercadoPago, "_requisitar", lambda self, metodo, caminho, **kwargs: httpx.Response(401, json={}))
+    with pytest.raises(ErroNegocio):
+        MercadoPago("APP_USR-123", None, True).criar_cobranca(_dados())
