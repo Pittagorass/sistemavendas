@@ -188,31 +188,63 @@ a.botao:hover { background: var(--primaria-hover); }
 .linha-do-tempo li::before { content: ""; position: absolute; left: -6px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--primaria); }
 
 .apresentacao {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-  margin-bottom: 1.5rem;
-  padding: 1.5rem;
-  background: var(--cartao);
-  border: 1px solid var(--borda);
-  border-radius: 12px;
+  --tinta: #17131a;
+  --destaque: #d62839;
+  display: grid;
+  grid-template-columns: 5fr 6fr;
+  margin-bottom: 24px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--tinta);
 }
-.apresentacao img {
-  width: min(320px, 40%);
-  height: auto;
-  border-radius: 12px;
+.apresentacao-texto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px;
+  color: #fff;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1.5px, transparent 1.5px);
+  background-size: 18px 18px;
+}
+.apresentacao-texto p {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #c9c3d1;
 }
 .apresentacao h1 {
   margin: 0;
-  font-size: clamp(2rem, 6vw, 3.5rem);
-  color: var(--primaria);
+  font-size: clamp(2.75rem, 6.5vw, 5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
 }
-@media (max-width: 600px) {
-  .apresentacao {
-    flex-direction: column;
-    text-align: center;
-  }
-  .apresentacao img {
-    width: 100%;
-  }
+.apresentacao h1 span { display: block; color: #ff5a68; }
+.apresentacao a.botao { margin-top: 8px; padding: 12px 24px; font-weight: 600; background: var(--destaque); }
+.apresentacao a.botao:hover { background: #b01f2e; }
+.apresentacao a.botao:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.apresentacao img {
+  display: block;
+  width: 100%;
+  height: clamp(320px, 38vw, 440px);
+  object-fit: cover;
+  object-position: center 20%;
+}
+@media (max-width: 700px) {
+  .apresentacao { grid-template-columns: 1fr; }
+  .apresentacao img { grid-row: 1; height: auto; aspect-ratio: 1 / 0.8; }
+  .apresentacao-texto { padding: 24px; gap: 12px; }
+  .apresentacao a.botao { align-self: stretch; }
+}
+
+header > a { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.02em; }
+.produto { transition: box-shadow 0.15s, transform 0.15s; }
+.produto:hover { box-shadow: 0 6px 18px rgba(23, 19, 26, 0.12); transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) {
+  .produto { transition: none; }
+  .produto:hover { transform: none; }
 }
