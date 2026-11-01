@@ -217,12 +217,9 @@ def processar_pagamento(db: Session, info: InfoPagamento) -> Pedido | None:
         return pedido
 
     if info.valor < pedido.total:
-        registrar_status(
-            pedido,
-            pedido.status,
-            "pagamento",
-            f"Pagamento {info.id} aprovado com valor menor que o total (R$ {info.valor}). Verificar.",
-        )
+        observacao = f"Pagamento {info.id} aprovado com valor menor que o total (R$ {info.valor}). Verificar."
+        if not any(h.observacao == observacao for h in pedido.historico):
+            registrar_status(pedido, pedido.status, "pagamento", observacao)
         db.flush()
         return pedido
 

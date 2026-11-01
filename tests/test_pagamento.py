@@ -107,3 +107,19 @@ def test_modo_de_teste_bloqueia_se_nao_conseguir_verificar_o_vendedor(monkeypatc
     monkeypatch.setattr(MercadoPago, "_requisitar", lambda self, metodo, caminho, **kwargs: httpx.Response(401, json={}))
     with pytest.raises(ErroNegocio):
         MercadoPago("APP_USR-123", None, True).criar_cobranca(_dados())
+
+
+@pytest.mark.parametrize(
+    ("corpo", "valor"),
+    [
+        # Resposta real do Mercado Pago para um pedido de R$ 12 com R$ 30 de frete.
+        ({"transaction_amount": 12, "shipping_amount": 30, "transaction_details": {"total_paid_amount": 42}}, "42"),
+        ({"transaction_amount": 12, "shipping_amount": 30, "transaction_details": {"total_paid_amount": None}}, "42"),
+        ({"transaction_amount": 12}, "12"),
+    ],
+)
+def test_valor_do_pagamento_inclui_o_frete(monkeypatch, corpo, valor):
+    monkeypatch.setattr(
+        MercadoPago, "_requisitar", lambda self, metodo, caminho, **kwargs: httpx.Response(200, json={"id": 1, **corpo})
+    )
+    assert MercadoPago("TEST-123", None).consultar_pagamento("1").valor == Decimal(valor)

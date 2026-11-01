@@ -231,6 +231,10 @@ def test_valor_pago_menor_nao_confirma(cliente, gerente, comprador, loja, gatewa
     assert detalhe["status"] == "aguardando_pagamento"
     assert "valor menor" in detalhe["historico"][-1]["observacao"]
 
+    notificar(cliente, "555")
+    detalhe = cliente.get(f"/api/pedidos/{pedido['id']}", headers=comprador).json()
+    assert sum("valor menor" in (h["observacao"] or "") for h in detalhe["historico"]) == 1
+
 
 def test_retorno_do_mercado_pago_confirma_sem_webhook(cliente, gerente, comprador, loja, gateway):  # noqa: F811
     produto = criar(cliente, gerente, estoque_inicial=10)

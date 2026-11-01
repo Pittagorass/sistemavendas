@@ -159,12 +159,16 @@ class MercadoPago:
             logger.error("Falha ao consultar pagamento %s: %s", pagamento_id, resposta.status_code)
             raise ErroNegocio("Falha ao consultar o pagamento.", "gateway_indisponivel", 502)
         p = resposta.json()
+        # transaction_amount não inclui o frete: o valor pago de fato vem em transaction_details.
+        total_pago = (p.get("transaction_details") or {}).get("total_paid_amount")
+        if not total_pago:
+            total_pago = Decimal(str(p.get("transaction_amount") or 0)) + Decimal(str(p.get("shipping_amount") or 0))
         return InfoPagamento(
             id=str(p["id"]),
             status=p.get("status", "unknown"),
             status_detalhe=p.get("status_detail"),
             referencia=p.get("external_reference"),
-            valor=Decimal(str(p.get("transaction_amount") or 0)),
+            valor=Decimal(str(total_pago)),
             metodo=p.get("payment_method_id"),
             aprovado_em=_data(p.get("date_approved")),
         )
