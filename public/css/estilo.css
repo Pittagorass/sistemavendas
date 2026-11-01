@@ -186,3 +186,33 @@ a.botao:hover { background: var(--primaria-hover); }
 .linha-do-tempo { list-style: none; padding: 0; margin: 0; }
 .linha-do-tempo li { border-left: 2px solid var(--borda); padding: 0 0 12px 12px; position: relative; }
 .linha-do-tempo li::before { content: ""; position: absolute; left: -6px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--primaria); }
+
+.apresentacao {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+}
+.apresentacao img {
+  width: min(320px, 40%);
+  height: auto;
+  border-radius: 12px;
+}
+.apresentacao h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  color: var(--primaria);
+}
+@media (max-width: 600px) {
+  .apresentacao {
+    flex-direction: column;
+    text-align: center;
+  }
+  .apresentacao img {
+    width: 100%;
+  }
+}
