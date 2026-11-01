@@ -134,7 +134,7 @@ O sistema consiste em uma solução integrada de **E-commerce (Front-end do Clie
 | 2 | Módulos 1 e 2: cadastro, login, JWT, RBAC | **Concluída** (2026-10-27): RF/RNF-CAD01–06 e RF/RNF-SEC01–03 implementados, 50 testes passando, publicada na Vercel com cadastro e login validados em produção |
 | 3 | Módulo 4: produtos, estoque e painel do gerente | **Concluída** (2026-10-27): RF-PROD01–03 e RNF-PROD01 implementados, 74 testes passando, publicada e validada pelo gerente em produção (cadastro, estoque, histórico e upload de imagens no Blob store público `imagens-produtos`) |
 | 4 | Módulo 3: carrinho, frete e reserva | **Concluída** (2026-10-27): RF-C01–C04 e RNF-C01–C03 implementados, 95 testes passando, publicada com `CRON_SECRET` configurado e tabela de frete cadastrada (MG, MT, SP; grátis acima de R$ 400) |
-| 5 | Módulo 5 e RF-F01/RF-F04: checkout, pagamento e pedido | **Concluída localmente** (2026-10-27): pedido, Mercado Pago (Checkout Pro + webhook), baixa de estoque, expiração e ciclo de status implementados e testados com gateway falso. Pendente: publicar, configurar as credenciais de TESTE do Mercado Pago na Vercel e fazer uma compra de teste |
+| 5 | Módulo 5 e RF-F01/RF-F04: checkout, pagamento e pedido | **Concluída** (2026-11-01): pedido, Mercado Pago (Checkout Pro + webhook), baixa de estoque, expiração e ciclo de status implementados, 130 testes passando, publicada e validada em produção com contas de teste (pedido 1114, R$ 42 com frete: pago, estoque baixado e webhook respondido com 200) |
 | 6 | Módulo 6: NF-e em homologação e envio de documentos | Pendente |
 
 > Atualize esta tabela ao concluir cada etapa.
@@ -219,6 +219,9 @@ tests/                    pytest (conftest.py: fixture db_transacional desfaz tu
 - A preferência expira junto com a reserva. Pedido não pago no prazo é cancelado pela liberação sob demanda (mesmo ponto que libera reservas) e pelo cron.
 - Confirmação: webhook com `x-signature` validado (HMAC-SHA256 de `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`), e o status vem SEMPRE da consulta `GET /v1/payments/{id}`. A página de retorno (`/pedido.html?id=...&payment_id=...`) também consulta, para não depender só do webhook. Processamento idempotente (pagamento único por `id_externo`).
 - Pagamento aprovado: na mesma transação, reservas viram baixa (`estoque_fisico` e `estoque_reservado` diminuem), movimentação `venda` é registrada e o pedido vira `pago`. Valor pago menor que o total não confirma. Aprovação após o prazo: baixa se houver saldo livre; senão o pedido vira `pago` com alerta no histórico para repor estoque ou estornar.
+- O valor pago vem de `transaction_details.total_paid_amount`: o `transaction_amount` não inclui o frete.
+- Testes de pagamento: criar a aplicação **dentro da conta vendedora de teste** e usar o Access Token dela, com `MERCADOPAGO_MODO_TESTE=true`; o webhook e sua assinatura também são configurados nessa aplicação. Pagar pelo `init_point`, logado com a conta compradora de teste. Esse link é o ambiente real (`live_mode: true`): o dinheiro só é fictício porque as contas são de teste, por isso cada cobrança em modo de teste confirma a tag `test_user` do vendedor. Pagamento direto em `POST /v1/payments` com esse token responde 401 "Unauthorized use of live credentials", mas o checkout funciona.
+- Pendente de investigação: na validação, o botão "Pagar" do checkout ficou desabilitado no Chrome (janela anônima) e funcionou no Edge (InPrivate); a causa não foi identificada.
 - Gerente: `aguardando_pagamento→cancelado`, `pago→faturado` (manual até a Etapa 6 automatizar com a NF-e), `faturado→enviado`, `enviado→entregue`. Cancelar pedido pago exige estorno (fora do escopo desta etapa).
 
 **Decisões da Etapa 2:**
