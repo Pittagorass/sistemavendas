@@ -13,7 +13,7 @@ class CriarPedidoEntrada(BaseModel):
 
 
 class AlterarStatusEntrada(BaseModel):
-    status: Literal["faturado", "enviado", "entregue", "cancelado"]
+    status: Literal["enviado", "entregue", "cancelado"]
     observacao: str | None = Field(default=None, max_length=500)
 
 
@@ -46,6 +46,19 @@ class PagamentoSaida(_DoBanco):
     aprovado_em: datetime | None
 
 
+class NotaFiscalSaida(_DoBanco):
+    status: str
+    numero: str | None
+    serie: str | None
+    chave_acesso: str | None
+
+
+class NotaFiscalAdmin(NotaFiscalSaida):
+    referencia: str
+    mensagem: str | None
+    email_enviado_em: datetime | None
+
+
 class PedidoResumo(_DoBanco):
     id: uuid.UUID
     numero: int
@@ -72,6 +85,7 @@ class PedidoDetalhe(PedidoResumo):
     url_pagamento: str | None
     historico: list[HistoricoSaida]
     pagamentos: list[PagamentoSaida]
+    nota_fiscal: NotaFiscalSaida | None
 
 
 class PedidoAdmin(PedidoDetalhe):
@@ -80,3 +94,4 @@ class PedidoAdmin(PedidoDetalhe):
     comprador_email: str
     comprador_cpf: str
     comprador_telefone: str
+    nota_fiscal: NotaFiscalAdmin | None

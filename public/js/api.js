@@ -39,6 +39,33 @@ const Api = {
   },
 };
 
+// Baixa um documento da API. O token não vai em links, então o arquivo chega por fetch.
+async function baixarArquivo(caminho, nomePadrao) {
+  const obter = () => fetch(caminho, {
+    headers: Api.token ? { Authorization: `Bearer ${Api.token}` } : {},
+    credentials: "same-origin",
+  });
+  let resposta = await obter();
+  if (resposta.status === 401 && (await Api.renovarSessao())) resposta = await obter();
+  if (!resposta.ok) {
+    const dados = await resposta.json().catch(() => null);
+    throw new Error(dados?.erro?.mensagem || "Não foi possível baixar o documento.");
+  }
+  const nome = (resposta.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || nomePadrao;
+  const url = URL.createObjectURL(await resposta.blob());
+  const link = Object.assign(document.createElement("a"), { href: url, download: nome });
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+const NOMES_NOTA = {
+  pendente: "Aguardando emissão",
+  processando: "Em processamento",
+  autorizada: "Autorizada",
+  rejeitada: "Rejeitada",
+  cancelada: "Cancelada",
+};
+
 const NOMES_STATUS = {
   aguardando_pagamento: "Aguardando pagamento",
   pago: "Pago",
@@ -63,7 +90,9 @@ function formatarPreco(valor) {
 const ROTULOS_CAMPOS = {
   preco: "Preço", descricao: "Descrição", estoque_inicial: "Estoque inicial", quantidade: "Quantidade",
   motivo: "Motivo", tipo: "Tipo", ncm: "NCM", cfop: "CFOP", cst_csosn: "CST/CSOSN", unidade: "Unidade",
-  origem: "Origem",
+  origem: "Origem", inscricao_estadual: "Inscrição Estadual", cnpj: "CNPJ", razao_social: "Razão social",
+  nome_fantasia: "Nome fantasia", municipio: "Município", regime_tributario: "Regime tributário",
+  cst_pis: "CST do PIS", cst_cofins: "CST da COFINS",
   nome: "Nome", email: "E-mail", cpf: "CPF", telefone: "Telefone", senha: "Senha",
   aceite_termos: "Termos", login: "E-mail ou CPF", senha_atual: "Senha atual", nova_senha: "Nova senha",
   cep: "CEP", logradouro: "Logradouro", numero: "Número", complemento: "Complemento",

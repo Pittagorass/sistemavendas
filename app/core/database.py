@@ -20,6 +20,8 @@ if settings.serverless and settings.database_host in ("localhost", "127.0.0.1"):
 engine = create_engine(
     settings.sqlalchemy_url,
     pool_pre_ping=True,
+    # Erros do SQLAlchemy não levam os valores da consulta (CPF, e-mail, hash) para o log (RNF-GER03).
+    hide_parameters=True,
     poolclass=NullPool if settings.serverless else None,
 )
 
