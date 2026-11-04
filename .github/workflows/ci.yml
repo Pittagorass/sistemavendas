@@ -32,4 +32,5 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
       - run: alembic upgrade head
-      - run: pytest
+      # RNF-GER02: falha se a cobertura cair abaixo de 80%.
+      - run: pytest --cov=app --cov-fail-under=80

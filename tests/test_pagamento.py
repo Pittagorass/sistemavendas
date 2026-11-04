@@ -123,3 +123,20 @@ def test_valor_do_pagamento_inclui_o_frete(monkeypatch, corpo, valor):
         MercadoPago, "_requisitar", lambda self, metodo, caminho, **kwargs: httpx.Response(200, json={"id": 1, **corpo})
     )
     assert MercadoPago("TEST-123", None).consultar_pagamento("1").valor == Decimal(valor)
+
+
+def test_recusa_da_preferencia_nao_registra_dados_do_comprador(monkeypatch, caplog):
+    from app.core.errors import ErroNegocio
+
+    def recusar(self, metodo, caminho, cabecalhos=None, **kwargs):
+        if caminho == "/users/me":
+            return httpx.Response(200, json={"id": 1, "tags": ["test_user"]})
+        # A resposta de erro ecoa o corpo enviado, com e-mail e CPF do comprador.
+        return httpx.Response(400, json={"message": "invalid payer", "payer": {"email": "maria@exemplo.com", "cpf": "52998224725"}})
+
+    monkeypatch.setattr(MercadoPago, "_requisitar", recusar)
+    with pytest.raises(ErroNegocio) as erro:
+        MercadoPago("TEST-123", None).criar_cobranca(_dados())
+    assert erro.value.codigo == "gateway_recusou"
+    assert "invalid payer" in caplog.text
+    assert "maria@exemplo.com" not in caplog.text and "52998224725" not in caplog.text

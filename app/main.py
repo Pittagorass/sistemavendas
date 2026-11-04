@@ -3,10 +3,12 @@
 from fastapi import FastAPI
 
 from app.core.errors import registrar_handlers
+from app.core.logs import configurar_logs
 from app.routes import autenticacao, carrinho, fiscal, health, pedidos, produtos, usuarios
 
 
 def criar_app() -> FastAPI:
+    configurar_logs()
     app = FastAPI(title="Lulora Tech - ERP & E-commerce", version="0.6.0")
     registrar_handlers(app)
     app.include_router(health.router)
