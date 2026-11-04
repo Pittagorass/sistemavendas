@@ -3,8 +3,9 @@
 from app.models.autenticacao import RefreshToken, TentativaLogin, TokenRevogado
 from app.models.base import Base
 from app.models.carrinho import Carrinho, ItemCarrinho, ReservaEstoque
+from app.models.empresa import Empresa
 from app.models.frete import ConfiguracaoFrete, FreteUF
-from app.models.pedido import HistoricoPedido, ItemPedido, Pagamento, Pedido
+from app.models.pedido import HistoricoPedido, ItemPedido, NotaFiscal, Pagamento, Pedido
 from app.models.produto import MovimentacaoEstoque, Produto
 from app.models.usuario import Endereco, Usuario
 
@@ -12,12 +13,14 @@ __all__ = [
     "Base",
     "Carrinho",
     "ConfiguracaoFrete",
+    "Empresa",
     "Endereco",
     "FreteUF",
     "HistoricoPedido",
     "ItemCarrinho",
     "ItemPedido",
     "MovimentacaoEstoque",
+    "NotaFiscal",
     "Pagamento",
     "Pedido",
     "Produto",
