@@ -70,12 +70,20 @@ class Settings(BaseSettings):
     resend_api_key: str | None = None
     email_remetente: str = "Lulora Tech <onboarding@resend.dev>"
 
+    # Modo simulado (sem Focus NFe nem Resend): só vale com AMBIENTE=testes e fora da Vercel.
+    nfe_simulada: bool = False
+
     # A Vercel define VERCEL=1 nas funções serverless.
     vercel: str | None = None
 
     @property
     def serverless(self) -> bool:
         return self.vercel is not None
+
+    @property
+    def nfe_simulada_ativa(self) -> bool:
+        """Notas simuladas ficam como autorizadas no banco: nunca no banco de produção."""
+        return self.nfe_simulada and self.ambiente == "testes" and not self.serverless
 
     @property
     def jwt_secret_inseguro(self) -> bool:

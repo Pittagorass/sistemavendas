@@ -60,6 +60,10 @@ class Resend:
 
 def obter_enviador() -> EnviadorEmail | None:
     settings = get_settings()
+    if settings.nfe_simulada_ativa:
+        from app.integrations.simulado import EnviadorSimulado
+
+        return EnviadorSimulado()
     if not settings.resend_api_key:
         return None
     return Resend(settings.resend_api_key, settings.email_remetente)

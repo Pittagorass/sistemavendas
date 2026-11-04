@@ -213,6 +213,12 @@ class FocusNFe:
 def obter_emissor() -> EmissorNFe | None:
     """None enquanto a Focus NFe não estiver configurada: o pagamento nunca depende da nota."""
     settings = get_settings()
+    if settings.nfe_simulada_ativa:
+        from app.integrations.simulado import emissor_simulado
+
+        return emissor_simulado()
+    if settings.nfe_simulada:
+        logger.warning("NFE_SIMULADA ignorada: só funciona com AMBIENTE=testes e fora da Vercel.")
     if not settings.focusnfe_token:
         return None
     return FocusNFe(settings.focusnfe_token, settings.focusnfe_producao_liberada)
