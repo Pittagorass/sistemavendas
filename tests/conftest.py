@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 # Carrega o .env local para que testes que dependem de DATABASE_URL rodem fora do CI.
 # Variáveis já definidas no ambiente (ex.: no GitHub Actions) têm prioridade.
-load_dotenv()
+load_dotenv(os.environ.get("ENV_FILE", ".env"))
 # Custo mínimo do bcrypt para os testes não ficarem lentos (produção usa 12).
 os.environ["BCRYPT_ROUNDS"] = "4"
 

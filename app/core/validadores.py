@@ -25,6 +25,19 @@ def cpf_valido(cpf: str) -> bool:
     return True
 
 
+def cnpj_valido(cnpj: str) -> bool:
+    """Algoritmo oficial dos dígitos verificadores; rejeita sequências repetidas."""
+    digitos = somente_digitos(cnpj)
+    if len(digitos) != 14 or digitos == digitos[0] * 14:
+        return False
+    for tamanho in (12, 13):
+        pesos = [(tamanho - 1 - i) % 8 + 2 for i in range(tamanho)]
+        resto = sum(int(digitos[i]) * pesos[i] for i in range(tamanho)) % 11
+        if (0 if resto < 2 else 11 - resto) != int(digitos[tamanho]):
+            return False
+    return True
+
+
 def telefone_valido(telefone: str) -> bool:
     """DDD válido + 8 dígitos (fixo) ou 9 dígitos começando com 9 (celular)."""
     digitos = somente_digitos(telefone)

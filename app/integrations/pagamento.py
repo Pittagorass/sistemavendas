@@ -143,7 +143,13 @@ class MercadoPago:
             )
         resposta = self._requisitar("POST", "/checkout/preferences", json=corpo)
         if resposta.status_code >= 400:
-            logger.error("Mercado Pago recusou a preferência: %s %s", resposta.status_code, resposta.text[:500])
+            try:
+                dados_erro = resposta.json()
+            except ValueError:
+                dados_erro = None
+            motivo = dados_erro.get("message") if isinstance(dados_erro, dict) else None
+            # Só o motivo: a resposta inteira pode ecoar dados do comprador (RNF-GER03).
+            logger.error("Mercado Pago recusou a preferência: %s %s", resposta.status_code, motivo)
             raise ErroNegocio("O Mercado Pago recusou a cobrança. Tente novamente.", "gateway_recusou", 502)
         dados_resposta = resposta.json()
         # Credenciais de contas de teste (APP_USR-) pagam pelo init_point, com a conta compradora de teste

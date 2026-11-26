@@ -36,6 +36,14 @@
           <dt class="total">Total</dt><dd class="total" id="total"></dd>
         </dl>
         <p class="dica" id="entrega"></p>
+        <div id="nota" hidden>
+          <h2>Nota fiscal</h2>
+          <p class="dica" id="nota-situacao"></p>
+          <div class="acoes" id="nota-documentos" hidden>
+            <button type="button" class="secundario" id="baixar-danfe">Baixar DANFE (PDF)</button>
+            <button type="button" class="secundario" id="baixar-xml">Baixar XML</button>
+          </div>
+        </div>
         <div class="acoes">
           <a id="pagar" class="botao" hidden>Pagar com Mercado Pago</a>
           <button id="cancelar" type="button" class="secundario" hidden>Cancelar pedido</button>
@@ -108,6 +116,16 @@
       pagar.hidden = !aguardando || !p.url_pagamento;
       if (p.url_pagamento) pagar.href = p.url_pagamento;
       document.getElementById("cancelar").hidden = !aguardando;
+
+      const nota = p.nota_fiscal;
+      document.getElementById("nota").hidden = !nota;
+      if (nota) {
+        const autorizada = nota.status === "autorizada";
+        document.getElementById("nota-documentos").hidden = !autorizada;
+        document.getElementById("nota-situacao").textContent = autorizada
+          ? `NF-e nº ${nota.numero}, série ${nota.serie}. Os documentos também foram enviados para o seu e-mail.`
+          : "Sua nota fiscal está sendo emitida.";
+      }
       mostrarPrazo();
     }
 
@@ -138,12 +156,18 @@
     async function carregar() {
       try {
         exibir(await Api.requisitar(`/api/pedidos/${pedidoId}`));
-        // Enquanto aguarda pagamento, consulta de novo (a confirmação chega pelo webhook).
-        if (pedido.status === "aguardando_pagamento" && consultas++ < 60) setTimeout(carregar, 5000);
+        // Enquanto aguarda o pagamento ou a nota, consulta de novo (a confirmação chega por webhook).
+        if (["aguardando_pagamento", "pago"].includes(pedido.status) && consultas++ < 60) setTimeout(carregar, 5000);
       } catch (erro) {
         if (erro.status === 401) return (window.location.href = "/login.html");
         mostrarMensagem(mensagem, "erro", erro.message);
       }
+    }
+
+    for (const tipo of ["danfe", "xml"]) {
+      document.getElementById(`baixar-${tipo}`).addEventListener("click", () =>
+        baixarArquivo(`/api/pedidos/${pedidoId}/nota-fiscal/${tipo}`, `${tipo}.${tipo === "danfe" ? "pdf" : "xml"}`)
+          .catch((erro) => mostrarMensagem(mensagem, "erro", erro.message)));
     }
 
     document.getElementById("cancelar").addEventListener("click", async () => {

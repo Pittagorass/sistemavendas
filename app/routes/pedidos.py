@@ -9,12 +9,14 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.errors import ErroNegocio
+from app.integrations.email import EnviadorEmail, obter_enviador
+from app.integrations.nfe import EmissorNFe, obter_emissor
 from app.integrations.pagamento import GatewayPagamento, obter_gateway
 from app.models.pedido import STATUS_PEDIDO
 from app.routes.deps import exigir_gerente, usuario_atual
 from app.schemas.pedido import AlterarStatusEntrada, CriarPedidoEntrada, PedidoAdmin, PedidoDetalhe, PedidoResumo
 from app.schemas.produto import Pagina
-from app.services import pedido_service
+from app.services import nfe_service, pedido_service
 from app.services.autenticacao_service import UsuarioAutenticado
 
 logger = logging.getLogger(__name__)
@@ -70,9 +72,13 @@ def verificar_pagamento(
     pagamento_id: str = Query(min_length=1, max_length=50, pattern=r"^\d+$"),
     usuario: UsuarioAutenticado = Depends(usuario_atual),
     gateway: GatewayPagamento = Depends(obter_gateway),
+    emissor: EmissorNFe | None = Depends(obter_emissor),
+    enviador: EnviadorEmail | None = Depends(obter_enviador),
     db: Session = Depends(get_db),
 ):
-    return pedido_service.verificar_pagamento(db, usuario.id, pedido_id, pagamento_id, gateway)
+    pedido = pedido_service.verificar_pagamento(db, usuario.id, pedido_id, pagamento_id, gateway)
+    nfe_service.processar(db, pedido, emissor, enviador)
+    return pedido
 
 
 # --- Gerente ---
@@ -117,6 +123,8 @@ def notificacao_mercado_pago(
     x_signature: str | None = Header(default=None),
     x_request_id: str | None = Header(default=None),
     gateway: GatewayPagamento = Depends(obter_gateway),
+    emissor: EmissorNFe | None = Depends(obter_emissor),
+    enviador: EnviadorEmail | None = Depends(obter_enviador),
     db: Session = Depends(get_db),
 ):
     """Só o id do pagamento é aproveitado da notificação; o status vem sempre da consulta à API."""
@@ -128,5 +136,7 @@ def notificacao_mercado_pago(
         raise ErroNegocio("Assinatura inválida.", "assinatura_invalida", 401)
     info = gateway.consultar_pagamento(data_id)
     if info:
-        pedido_service.processar_pagamento(db, info)
+        pedido = pedido_service.processar_pagamento(db, info)
+        if pedido:
+            nfe_service.processar(db, pedido, emissor, enviador)
     return {"ok": True}

@@ -9,7 +9,7 @@
 <body>
   <header>
     <a href="/">Lulora Tech</a>
-    <nav><a href="/admin/produtos.html">Produtos</a><a href="/admin/frete.html">Frete</a><a href="/conta.html">Minha conta</a></nav>
+    <nav><a href="/admin/produtos.html">Produtos</a><a href="/admin/frete.html">Frete</a><a href="/admin/empresa.html">Empresa</a><a href="/conta.html">Minha conta</a></nav>
   </header>
   <main class="largo">
     <div id="mensagem" class="mensagem" role="alert"></div>
@@ -54,6 +54,14 @@
     <p class="dica" id="detalhe-totais"></p>
     <h3>Pagamentos</h3>
     <ul id="detalhe-pagamentos" class="dica"></ul>
+    <h3>Nota fiscal</h3>
+    <p class="dica" id="detalhe-nota"></p>
+    <div class="acoes" id="nota-acoes">
+      <button type="button" class="secundario" id="nota-emitir"></button>
+      <button type="button" class="secundario" id="nota-danfe">Baixar DANFE</button>
+      <button type="button" class="secundario" id="nota-xml">Baixar XML</button>
+      <button type="button" class="secundario" id="nota-email">Reenviar por e-mail</button>
+    </div>
     <h3>Histórico</h3>
     <ul id="detalhe-historico" class="linha-do-tempo"></ul>
     <form id="form-status" novalidate>
@@ -74,11 +82,10 @@
     // Próximas situações permitidas (espelha TRANSICOES_GERENTE do back-end).
     const PROXIMOS = {
       aguardando_pagamento: ["cancelado"],
-      pago: ["faturado"],
       faturado: ["enviado"],
       enviado: ["entregue"],
     };
-    const ORIGENS = { cliente: "cliente", gerente: "gerente", pagamento: "Mercado Pago", sistema: "sistema" };
+    const ORIGENS = { cliente: "cliente", gerente: "gerente", pagamento: "Mercado Pago", nfe: "NF-e", sistema: "sistema" };
     const mensagem = document.getElementById("mensagem");
     const dialogo = document.getElementById("detalhe");
     let pedidoAtual = null;
@@ -146,6 +153,7 @@
             }))
           : [Object.assign(document.createElement("li"), { textContent: "Nenhum pagamento registrado." })]),
       );
+      preencherNota(p);
       document.getElementById("detalhe-historico").replaceChildren(
         ...[...p.historico].reverse().map((h) => {
           const item = document.createElement("li");
@@ -166,6 +174,43 @@
         ...proximos.map((s) => Object.assign(document.createElement("option"), { value: s, textContent: NOMES_STATUS[s] })),
       );
       document.getElementById("observacao").value = "";
+    }
+
+    function preencherNota(p) {
+      const nota = p.nota_fiscal;
+      const pago = !["aguardando_pagamento", "cancelado"].includes(p.status);
+      const autorizada = nota?.status === "autorizada";
+      let texto = "Nenhuma nota emitida.";
+      if (nota) {
+        texto = `${NOMES_NOTA[nota.status] || nota.status} · referência ${nota.referencia}`;
+        if (autorizada) texto += ` · nº ${nota.numero}, série ${nota.serie} · chave ${nota.chave_acesso}`;
+        if (autorizada) texto += nota.email_enviado_em ? ` · e-mail enviado em ${formatarData(nota.email_enviado_em)}` : " · e-mail não enviado";
+        if (nota.mensagem) texto += ` · ${nota.mensagem}`;
+      }
+      document.getElementById("detalhe-nota").textContent = texto;
+      const emitir = document.getElementById("nota-emitir");
+      emitir.hidden = !pago || autorizada || nota?.status === "cancelada";
+      emitir.textContent = nota?.status === "processando" ? "Atualizar situação" : nota?.status === "rejeitada" ? "Tentar de novo" : "Emitir nota";
+      for (const id of ["nota-danfe", "nota-xml", "nota-email"]) document.getElementById(id).hidden = !autorizada;
+    }
+
+    async function acaoNota(caminho, sucesso) {
+      const caixa = document.getElementById("mensagem-detalhe");
+      try {
+        preencher(await Api.requisitar(`/api/admin/pedidos/${pedidoAtual.id}/nota-fiscal/${caminho}`, { metodo: "POST" }));
+        mostrarMensagem(caixa, "sucesso", sucesso);
+        carregar();
+      } catch (erro) {
+        mostrarMensagem(caixa, "erro", erro.message);
+      }
+    }
+
+    document.getElementById("nota-emitir").addEventListener("click", () => acaoNota("emitir", "Situação da nota atualizada."));
+    document.getElementById("nota-email").addEventListener("click", () => acaoNota("reenviar-email", "Documentos reenviados."));
+    for (const [id, tipo, nome] of [["nota-danfe", "danfe", "danfe.pdf"], ["nota-xml", "xml", "nfe.xml"]]) {
+      document.getElementById(id).addEventListener("click", () =>
+        baixarArquivo(`/api/admin/pedidos/${pedidoAtual.id}/nota-fiscal/${tipo}`, nome)
+          .catch((erro) => mostrarMensagem(document.getElementById("mensagem-detalhe"), "erro", erro.message)));
     }
 
     async function abrir(id) {

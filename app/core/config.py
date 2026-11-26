@@ -1,5 +1,6 @@
 """Configurações da aplicação lidas de variáveis de ambiente (RNF-TEC03 / Diretriz 5)."""
 
+import os
 from functools import lru_cache
 from urllib.parse import urlsplit
 
@@ -10,7 +11,8 @@ JWT_SECRET_PADRAO = "troque-este-segredo"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # ENV_FILE escolhe outro arquivo (ex.: ENV_FILE=.env.testes para a branch "testes" do Neon).
+    model_config = SettingsConfigDict(env_file=os.environ.get("ENV_FILE", ".env"), env_file_encoding="utf-8", extra="ignore")
 
     ambiente: str = "desenvolvimento"
     # A integração Neon da Vercel pode criar a variável como POSTGRES_URL em vez de DATABASE_URL.
@@ -57,12 +59,31 @@ class Settings(BaseSettings):
     # Endereço público do site, usado nas URLs de retorno e de notificação do Mercado Pago.
     url_publica: str = "https://sistemavendas-sigma.vercel.app"
 
+    # Focus NFe (RF-F02). Sem o token, os pedidos pagos ficam com a nota pendente.
+    focusnfe_token: str | None = None
+    # Valor enviado pela Focus NFe no header X-Webhook-Token (definido ao criar o gatilho).
+    focusnfe_webhook_token: str | None = None
+    # Trava de segurança (RF-F02): enquanto for False, as notas só vão para a homologação.
+    focusnfe_producao_liberada: bool = False
+
+    # Resend (RF-F03). Sem a chave, as notas são emitidas mas os documentos não são enviados.
+    resend_api_key: str | None = None
+    email_remetente: str = "Lulora Tech <onboarding@resend.dev>"
+
+    # Modo simulado (sem Focus NFe nem Resend): só vale com AMBIENTE=testes e fora da Vercel.
+    nfe_simulada: bool = False
+
     # A Vercel define VERCEL=1 nas funções serverless.
     vercel: str | None = None
 
     @property
     def serverless(self) -> bool:
         return self.vercel is not None
+
+    @property
+    def nfe_simulada_ativa(self) -> bool:
+        """Notas simuladas ficam como autorizadas no banco: nunca no banco de produção."""
+        return self.nfe_simulada and self.ambiente == "testes" and not self.serverless
 
     @property
     def jwt_secret_inseguro(self) -> bool:

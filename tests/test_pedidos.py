@@ -7,10 +7,12 @@ import pytest
 from sqlalchemy import select
 
 from app.core.errors import ErroNegocio
+from app.integrations.email import obter_enviador
+from app.integrations.nfe import RespostaNFe, obter_emissor
 from app.integrations.pagamento import Cobranca, InfoPagamento, MercadoPago, obter_gateway
 from app.main import app
 from app.models.carrinho import ReservaEstoque
-from app.models.pedido import Pedido
+from app.models.pedido import NOTA_AUTORIZADA, Pedido
 from app.models.produto import MovimentacaoEstoque, Produto
 from tests.conftest import requer_banco
 from tests.fabricas import cadastrar, login
@@ -54,8 +56,13 @@ class GatewayFalso:
 def gateway():
     falso = GatewayFalso()
     app.dependency_overrides[obter_gateway] = lambda: falso
+    # Por padrão os testes de pedido não falam com a Focus NFe nem com o Resend.
+    app.dependency_overrides[obter_emissor] = lambda: None
+    app.dependency_overrides[obter_enviador] = lambda: None
     yield falso
     app.dependency_overrides.pop(obter_gateway, None)
+    app.dependency_overrides.pop(obter_emissor, None)
+    app.dependency_overrides.pop(obter_enviador, None)
 
 
 @pytest.fixture
@@ -310,7 +317,19 @@ def test_cliente_cancela_pedido_aguardando(cliente, gerente, comprador, loja, ga
     assert cliente.post(f"/api/pedidos/{pedido['id']}/cancelar", headers=comprador).status_code == 409
 
 
+class EmissorAutorizado:
+    def emitir(self, referencia, pedido, empresa):
+        return RespostaNFe(status=NOTA_AUTORIZADA, numero="1", serie="1", chave_acesso="NFe1")
+
+
 def test_gerente_avanca_o_ciclo_do_pedido(cliente, gerente, comprador, loja, gateway):  # noqa: F811
+    app.dependency_overrides[obter_emissor] = EmissorAutorizado
+    empresa = {
+        "cnpj": "11222333000181", "inscricao_estadual": "123456789", "razao_social": "Lulora Tech",
+        "logradouro": "Rua Teste", "numero": "10", "bairro": "Centro", "municipio": "Cuiabá", "uf": "MT",
+        "cep": "78000000", "regime_tributario": 1, "cst_pis": "49", "cst_cofins": "49",
+    }
+    assert cliente.put("/api/admin/empresa", headers=gerente, json=empresa).status_code == 200
     produto = criar(cliente, gerente, estoque_inicial=10)
     pedido = fazer_pedido(cliente, comprador, produto["id"], 1)
     url = f"/api/admin/pedidos/{pedido['id']}/status"
@@ -319,7 +338,8 @@ def test_gerente_avanca_o_ciclo_do_pedido(cliente, gerente, comprador, loja, gat
     gateway.aprovar("999", pedido)
     notificar(cliente, "999")
     assert cliente.post(url, headers=gerente, json={"status": "cancelado"}).status_code == 409
-    for status in ("faturado", "enviado", "entregue"):
+    # "faturado" vem da autorização da NF-e; o gerente segue daí em diante.
+    for status in ("enviado", "entregue"):
         resposta = cliente.post(url, headers=gerente, json={"status": status, "observacao": f"ok {status}"})
         assert resposta.status_code == 200 and resposta.json()["status"] == status
 

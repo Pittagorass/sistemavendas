@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Empresa – Painel do gerente – Lulora Tech</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+</head>
+<body>
+  <header>
+    <a href="/">Lulora Tech</a>
+    <nav><a href="/admin/pedidos.html">Pedidos</a><a href="/admin/produtos.html">Produtos</a><a href="/admin/frete.html">Frete</a><a href="/conta.html">Minha conta</a></nav>
+  </header>
+  <main>
+    <div id="mensagem" class="mensagem" role="alert"></div>
+    <form id="form-empresa" class="cartao" novalidate hidden>
+      <h1>Dados da empresa</h1>
+      <p class="dica">Estes dados aparecem como emitente nas notas fiscais. Confirme o regime tributário e os códigos de PIS e COFINS com a sua contabilidade.</p>
+      <div class="grade">
+        <div><label for="cnpj">CNPJ</label><input id="cnpj" name="cnpj" inputmode="numeric" required></div>
+        <div><label for="inscricao_estadual">Inscrição Estadual</label><input id="inscricao_estadual" name="inscricao_estadual" inputmode="numeric" required></div>
+        <div class="inteiro"><label for="razao_social">Razão social</label><input id="razao_social" name="razao_social" maxlength="150" required></div>
+        <div class="inteiro"><label for="nome_fantasia">Nome fantasia (opcional)</label><input id="nome_fantasia" name="nome_fantasia" maxlength="150"></div>
+        <div><label for="cep">CEP</label><input id="cep" name="cep" inputmode="numeric" required></div>
+        <div><label for="logradouro">Logradouro</label><input id="logradouro" name="logradouro" maxlength="150" required></div>
+        <div><label for="numero">Número</label><input id="numero" name="numero" maxlength="20" required></div>
+        <div><label for="complemento">Complemento (opcional)</label><input id="complemento" name="complemento" maxlength="100"></div>
+        <div><label for="bairro">Bairro</label><input id="bairro" name="bairro" maxlength="100" required></div>
+        <div><label for="municipio">Município</label><input id="municipio" name="municipio" maxlength="100" required></div>
+        <div><label for="uf">UF</label><input id="uf" name="uf" maxlength="2" required></div>
+        <div>
+          <label for="regime_tributario">Regime tributário</label>
+          <select id="regime_tributario" name="regime_tributario" required>
+            <option value="1">Simples Nacional</option>
+            <option value="2">Simples Nacional – excesso de sublimite</option>
+            <option value="3">Regime normal</option>
+          </select>
+        </div>
+        <div><label for="cst_pis">CST do PIS</label><input id="cst_pis" name="cst_pis" inputmode="numeric" maxlength="2" required></div>
+        <div><label for="cst_cofins">CST da COFINS</label><input id="cst_cofins" name="cst_cofins" inputmode="numeric" maxlength="2" required></div>
+      </div>
+      <div class="acoes"><button type="submit">Salvar dados</button></div>
+    </form>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const mensagem = document.getElementById("mensagem");
+    const formulario = document.getElementById("form-empresa");
+
+    function preencher(empresa) {
+      if (!empresa) return;
+      for (const campo of formulario.elements) {
+        if (campo.name) campo.value = empresa[campo.name] ?? "";
+      }
+    }
+
+    formulario.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      limparMensagem(mensagem);
+      const dados = Object.fromEntries(new FormData(formulario));
+      dados.regime_tributario = Number(dados.regime_tributario);
+      dados.nome_fantasia ||= null;
+      dados.complemento ||= null;
+      try {
+        preencher(await Api.requisitar("/api/admin/empresa", { metodo: "PUT", corpo: dados }));
+        mostrarMensagem(mensagem, "sucesso", "Dados da empresa salvos.");
+      } catch (erro) {
+        mostrarMensagem(mensagem, "erro", erro.message, erro.campos);
+      }
+    });
+
+    (async () => {
+      if (!(await Api.renovarSessao())) return (window.location.href = "/login.html");
+      try {
+        preencher(await Api.requisitar("/api/admin/empresa"));
+        formulario.hidden = false;
+      } catch (erro) {
+        if (erro.status === 401) return (window.location.href = "/login.html");
+        mostrarMensagem(mensagem, "erro", erro.status === 403 ? "Esta área é restrita a gerentes." : erro.message);
+      }
+    })();
+  </script>
+</body>
+</html>

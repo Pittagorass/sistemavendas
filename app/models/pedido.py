@@ -30,6 +30,13 @@ STATUS_ENTREGUE = "entregue"
 STATUS_CANCELADO = "cancelado"
 STATUS_PEDIDO = (STATUS_AGUARDANDO, STATUS_PAGO, STATUS_FATURADO, STATUS_ENVIADO, STATUS_ENTREGUE, STATUS_CANCELADO)
 
+# Situação da NF-e (RF-F02)
+NOTA_PENDENTE = "pendente"
+NOTA_PROCESSANDO = "processando"
+NOTA_AUTORIZADA = "autorizada"
+NOTA_REJEITADA = "rejeitada"
+NOTA_CANCELADA = "cancelada"
+
 
 class Pedido(ModeloBase):
     __tablename__ = "pedidos"
@@ -91,6 +98,9 @@ class Pedido(ModeloBase):
     pagamentos: Mapped[list["Pagamento"]] = relationship(
         back_populates="pedido", cascade="all, delete-orphan", order_by="Pagamento.criado_em"
     )
+    nota_fiscal: Mapped["NotaFiscal | None"] = relationship(
+        back_populates="pedido", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class ItemPedido(ModeloBase):
@@ -131,7 +141,7 @@ class HistoricoPedido(ModeloBase):
     )
     status_anterior: Mapped[str | None] = mapped_column(String(25))
     status_novo: Mapped[str] = mapped_column(String(25))
-    # "cliente", "gerente", "pagamento" (webhook) ou "sistema" (expiração)
+    # "cliente", "gerente", "pagamento" (webhook), "nfe" (autorização da nota) ou "sistema" (expiração)
     origem: Mapped[str] = mapped_column(String(20))
     observacao: Mapped[str | None] = mapped_column(String(500))
     usuario_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -159,3 +169,30 @@ class Pagamento(ModeloBase):
     aprovado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     pedido: Mapped[Pedido] = relationship(back_populates="pagamentos")
+
+
+class NotaFiscal(ModeloBase):
+    """NF-e do pedido (RF-F02). A numeração é controlada pela Focus NFe, não pelo pedido (RNF-F02)."""
+
+    __tablename__ = "notas_fiscais"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pendente', 'processando', 'autorizada', 'rejeitada', 'cancelada')", name="status_valido"
+        ),
+    )
+
+    pedido_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pedidos.id", ondelete="RESTRICT"), unique=True
+    )
+    # Identifica a nota na Focus NFe e impede emissão duplicada.
+    referencia: Mapped[str] = mapped_column(String(50), unique=True)
+    status: Mapped[str] = mapped_column(String(20), default=NOTA_PENDENTE, server_default=NOTA_PENDENTE)
+    mensagem: Mapped[str | None] = mapped_column(String(1000))
+    numero: Mapped[str | None] = mapped_column(String(20))
+    serie: Mapped[str | None] = mapped_column(String(5))
+    chave_acesso: Mapped[str | None] = mapped_column(String(60))
+    caminho_xml: Mapped[str | None] = mapped_column(String(300))
+    caminho_danfe: Mapped[str | None] = mapped_column(String(300))
+    email_enviado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    pedido: Mapped[Pedido] = relationship(back_populates="nota_fiscal")

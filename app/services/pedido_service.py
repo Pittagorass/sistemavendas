@@ -22,18 +22,17 @@ from app.models.pedido import (
 )
 from app.models.produto import TIPO_VENDA, MovimentacaoEstoque
 from app.repositories import carrinho_repository, pedido_repository, produto_repository, usuario_repository
-from app.services import carrinho_service
+from app.services import carrinho_service, nfe_service
 from app.services.pedido_status import cancelar_aguardando, registrar_status
 
 logger = logging.getLogger(__name__)
 
 PROVEDOR_MERCADO_PAGO = "mercadopago"
 
-# Transições que o gerente pode fazer manualmente. "faturado" passará a ser automático com a
-# emissão da NF-e (Etapa 6); até lá o gerente marca manualmente.
+# Transições que o gerente pode fazer manualmente. "faturado" é automático: acontece quando a
+# NF-e é autorizada (RF-F04).
 TRANSICOES_GERENTE = {
     STATUS_AGUARDANDO: {STATUS_CANCELADO},
-    STATUS_PAGO: {STATUS_FATURADO},
     STATUS_FATURADO: {STATUS_ENVIADO},
     STATUS_ENVIADO: {STATUS_ENTREGUE},
 }
@@ -235,6 +234,9 @@ def processar_pagamento(db: Session, info: InfoPagamento) -> Pedido | None:
     pedido.pago_em = info.aprovado_em or datetime.now(UTC)
     pedido.cancelado_em = None
     registrar_status(pedido, STATUS_PAGO, "pagamento", " ".join(observacoes))
+    # Sem estoque, o gerente decide entre repor ou estornar antes de emitir a nota.
+    if not faltando:
+        nfe_service.criar_nota(pedido)
     db.flush()
     return pedido
 

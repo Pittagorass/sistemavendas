@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.errors import ErroNegocio
+from app.integrations.email import EnviadorEmail, obter_enviador
+from app.integrations.nfe import EmissorNFe, obter_emissor
 from app.routes.deps import exigir_gerente, usuario_atual
 from app.schemas.carrinho import (
     AdicionarItemEntrada,
@@ -18,7 +20,7 @@ from app.schemas.carrinho import (
     TabelaFreteEntrada,
     TabelaFreteSaida,
 )
-from app.services import carrinho_service, frete_service
+from app.services import carrinho_service, frete_service, nfe_service
 from app.services.autenticacao_service import UsuarioAutenticado
 
 router = APIRouter(prefix="/api/carrinho", tags=["carrinho"])
@@ -98,11 +100,17 @@ def salvar_tabela_frete(
 
 
 @cron.get("/liberar-reservas")
-def liberar_reservas(authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
-    """Limpeza diária das reservas vencidas. A Vercel envia `Authorization: Bearer <CRON_SECRET>`."""
+def liberar_reservas(
+    authorization: str | None = Header(default=None),
+    emissor: EmissorNFe | None = Depends(obter_emissor),
+    enviador: EnviadorEmail | None = Depends(obter_enviador),
+    db: Session = Depends(get_db),
+):
+    """Limpeza diária das reservas vencidas e das notas em aberto. A Vercel envia `Authorization: Bearer <CRON_SECRET>`."""
     segredo = get_settings().cron_secret
     if not segredo:
         raise ErroNegocio("CRON_SECRET não configurado.", "cron_nao_configurado", 503)
     if not authorization or not hmac.compare_digest(authorization, f"Bearer {segredo}"):
         raise ErroNegocio("Não autorizado.", "nao_autorizado", 401)
-    return {"liberadas": carrinho_service.liberar_reservas_expiradas(db)}
+    liberadas = carrinho_service.liberar_reservas_expiradas(db)
+    return {"liberadas": liberadas, "notas": nfe_service.processar_em_aberto(db, emissor, enviador)}

@@ -12,7 +12,10 @@ from app.models.produto import Produto
 
 def _com_detalhes():
     return select(Pedido).options(
-        selectinload(Pedido.itens), selectinload(Pedido.historico), selectinload(Pedido.pagamentos)
+        selectinload(Pedido.itens),
+        selectinload(Pedido.historico),
+        selectinload(Pedido.pagamentos),
+        selectinload(Pedido.nota_fiscal),
     )
 
 
